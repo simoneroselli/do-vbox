@@ -6,12 +6,15 @@
 # retrieve vm from http repository / install / and
 # configure 
 
+# Local custom settings
+import config
+
 import os, sys, re
 import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
 import shutil
 
-vbox_repository = ''
+vbox_repository = config.url
 vbox_repository_list = vbox_repository + '/vbox-index'
 vbox_list_file = '/tmp/vbox-list-file'
 vbox_setup_dir = '/usr/local/vbox'
@@ -100,6 +103,15 @@ def move(src, dest):
         os.makedirs(dest, mode=0777)
         shutil.move(src, dest)
 
+# MD5 sum
+def md5Sum(filename):
+    f = open(filename, 'r')
+    data = f.read()
+    md5 = hashlib.md5(data)
+    md5hash = md5.hexdigest()
+    f.close()
+    return md5hash
+
 # Unzip
 def unzip(filename, dir):
     vm_zip = zipfile.ZipFile(filename)
@@ -157,6 +169,12 @@ if options.setup:
     print 'Unzip', vm_file, 'to', vbox_setup_dir, '..'
     unzip(vm_file, vbox_setup_dir)
 
+
+	stringa = grep(file)
+	print stringa.split(' ')[1]
+	
+	#TODO:
+	# md5cum check	
     # change vm uuid
     # test if the vdi already exists
     
