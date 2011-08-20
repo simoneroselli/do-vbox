@@ -12,10 +12,10 @@ import config
 import os, sys, re
 import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
-import shutil
+import shutil, hashlib, grp
 
 vbox_repository = config.url
-vbox_repository_list = vbox_repository + '/vbox-index'
+vbox_repository_list = vbox_repository + 'vbox-index'
 vbox_list_file = '/tmp/vbox-list-file'
 vbox_setup_dir = '/usr/local/vbox'
 
@@ -42,7 +42,7 @@ def getVm(url, local_file):
     downloaded = 0
     fd = open(local_file, 'w')
     while True:
-        data = res.read(4096)
+        data = res.read(512*1024)
         if len(data) == 0:
             break
         downloaded += len(data)
@@ -51,6 +51,7 @@ def getVm(url, local_file):
         sys.stdout.write('Downloading %s..' % (sizeToHuman(downloaded)))
     fd.close()
     conn.close()
+    sys.stdout.write('\n')
 
 def sizeToHuman(size):
     kb = 1024.0
@@ -106,11 +107,55 @@ def move(src, dest):
 # MD5 sum
 def md5Sum(filename):
     f = open(filename, 'r')
-    data = f.read()
-    md5 = hashlib.md5(data)
+    md5 = hashlib.md5()
+    while True:
+        data = f.read(8196)
+        if not data:
+            break
+        md5.update(data)
+
     md5hash = md5.hexdigest()
     f.close()
     return md5hash
+
+# Class to handle vbox-index text file into the script
+class VirtualMachine(object):
+	def __init__(self, name=None, md5=None, desc=None, update=None, size=None):
+		self.name = name
+		self.md5 = md5
+		self.desc = desc
+		self.update = update
+		self.size = size
+
+	def isValid(self):
+		return self.name is not None and self.md5 is not None
+	
+	@staticmethod
+	def parseFileList(filename):
+		""" Modo performante secondo Lo """
+		virtual_machines = []
+
+		f = open(filename, "r")
+		vm = VirtualMachine()
+		for line in f:
+			line = line.strip()
+			if len(line) == 0:
+				if vm.isValid():
+					virtual_machines.append(vm)
+				vm = VirtualMachine()
+			else:
+				# cerco i : (split su i :)
+				# ottengo key: valore
+				key, value = line.split(':')
+				key = key.strip()
+				value = value.strip()
+				setattr(vm, key, value)				
+		if vm.isValid():
+			virtual_machines.append(vm)
+		f.close()
+
+		return virtual_machines
+
 
 # Unzip
 def unzip(filename, dir):
@@ -125,10 +170,22 @@ def unzip(filename, dir):
         else:
             makeDir(dir)
             vm_zip.extract(name, dir)
+
+# Group retrieve
+def checkGroup(group, gid):
+    try:
+        g = grp.getgrnam(group)
+        return g.gr_gid == gid
+    except KeyError:
+        return False
+
+
+
 # Parse
 def parse():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--list', action='store_true', help='List available machines')
+    parser.add_argument('--listname', action='store_true', help='List available machines')
+    parser.add_argument('--update', action='store_true', help='Refresh VM list')
     parser.add_argument('--show', action='store_true', help='Display machines information')
     parser.add_argument('--download', nargs=1, help='Download only in the current dir')
     parser.add_argument('--setup', nargs=1, help='Download and configure a machine')
@@ -137,10 +194,15 @@ def parse():
 # Parse arguments
 options = parse()
 
-# --list
-if options.list:
+# --listname
+if options.listname:
     listFile()
-    grep('vm-name', vbox_list_file)
+    grep('name', vbox_list_file)
+
+# --update
+if options.update:
+    listFile()
+    print "Vbox list updated!"
 
 # --show
 if options.show:
@@ -158,24 +220,55 @@ if options.download:
 
 # --setup
 if options.setup:
+    # On unix systems, ensure to be root
+    if os.name == 'posix':
+        me = os.getuid()
+        if me != 0:
+            print "Sorry, you must be root"
+            exit()
+
     vm_file = options.setup[0]
     try:
-        getVm(vbox_repository + vm_file, vm_file)
+       getVm(vbox_repository + vm_file, vm_file)
     except IOError as not_found_err:
         print 'VM "%s" %s' % (vm_file, not_found_err)
         exit()
+	
+	# Perform md5sum on dumped vm
+	print "Retrive md5sum on", vm_file
+    md5_vm_zip = md5Sum(vm_file)
+    vms = VirtualMachine.parseFileList(vbox_list_file)
+    md5_matched = False
+    for vm in vms:
+        if vm.md5 == md5_vm_zip:
+            md5_matched = True
+            md5_vm_name = vm.name
+            break
+
+    if md5_matched == True:
+        print "Md5sum matched for", md5_vm_name, ".."
+    else:
+        print "Md5sum failed, please retry download again"
+        print "or send an email to simoneroselli78@gmail.com"
+        print "reporting the incident"
 
     # Unpack the vm to /usr/local/vbox/
     print 'Unzip', vm_file, 'to', vbox_setup_dir, '..'
     unzip(vm_file, vbox_setup_dir)
 
+    # Set permissions for /usr/local/vbox
+    if os.name == 'posix' and checkGroup('staff', 50) == True:
+        print "Set", vbox_setup_dir, "staff permissions"
+        os.system('chmod -R 775 /usr/local/vbox')
+        os.system('chgrp -R staff /usr/local/vbox')
+    elif os.name == 'posix':
+        print "Set permissions directory for", vbox_setup_dir, "!"
+        print "   example: chmod -R 755", vbox_setup_dir
+        print "   example: chown -R your_user", vbox_setup_dir
 
-	stringa = grep(file)
-	print stringa.split(' ')[1]
-	
-	#TODO:
-	# md5cum check	
-    # change vm uuid
+
+	# Todo
+    # change vm uuid before add it
     # test if the vdi already exists
     
 
