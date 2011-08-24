@@ -16,8 +16,10 @@ import shutil, hashlib, grp
 
 vbox_repository = config.url
 vbox_repository_list = vbox_repository + 'vbox-index'
-vbox_list_file = '/tmp/vbox-list-file'
-vbox_setup_dir = '/usr/local/vbox'
+
+if os.name == 'posix':
+	vbox_list_file = '/tmp/vbox-list-file'
+	vbox_setup_dir = '/usr/local/vbox/'
 
 if len(sys.argv) < 2:
     print help
@@ -118,7 +120,8 @@ def md5Sum(filename):
     f.close()
     return md5hash
 
-# Class to handle vbox-index text file into the script
+# Create a virtual machines python list (virtual_machines = [] )
+# from vbox-index text file
 class VirtualMachine(object):
 	def __init__(self, name=None, md5=None, desc=None, update=None, size=None):
 		self.name = name
@@ -227,7 +230,7 @@ if options.setup:
             print "Sorry, you must be root"
             exit()
 
-    vm_file = options.setup[0]
+	vm_file = options.setup[0]
     try:
        getVm(vbox_repository + vm_file, vm_file)
     except IOError as not_found_err:
@@ -263,14 +266,38 @@ if options.setup:
         os.system('chgrp -R staff /usr/local/vbox')
     elif os.name == 'posix':
         print "Set permissions directory for", vbox_setup_dir, "!"
-        print "   example: chmod -R 755", vbox_setup_dir
         print "   example: chown -R your_user", vbox_setup_dir
+        print "   example: chmod -R 755", vbox_setup_dir
 
 
+    # Change vdi uuid
+	md5_matched = True
+	if os.name == 'posix':
+		if md5_matched == True:
+			vbox_vdi_dir = os.path.splitext(vm_file)
+			vbox_vdi = vbox_vdi_dir[0] + '.vdi'
+			vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir[0]
+			os.chdir(vbox_vdi_path)
+			os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi)
+
+    		# Create VM
+			os.system('VBoxManage createvm --name ' + vbox_vdi_dir + 
+												' --basefolder /home/' + $user + 
+												'.VirtualBox/Machines/ --register')
+			# Setting VM
+			os.system('VBoxManage modifyvm ' + vbox_vdi_dir + ' --memory 512 
+												--acpi on --boot1 disk --nic1 bridged 
+												--bridgeadapter1 eth0 --ostype WindowsXP 
+												--usb on')
+			
+			# Create an IDE controller
+			os.system('VBoxManage storagectl "prova" --name "IDE Controller" 
+												--add ide --controller ICH6')
+			# Add vdi to VM
+			os.system('VBoxManage storageattach ' + vbox_vdi_dir + ' --storagectl "IDE Controller" 
+												--port 0 --device 0 --type hdd 
+												--medium ',  vbox_vdi
+	
+	
 	# Todo
-    # change vm uuid before add it
-    # test if the vdi already exists
-    
-
-    # replace uuid in xml machine file before create
-    # create it with the right xml
+	# ostype in index (es: "Ostype: WindowsXP")
