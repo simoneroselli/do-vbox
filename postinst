@@ -1,0 +1,34 @@
+#!/usr/bin/env python
+#
+# Postinstall for debian-vbox
+#
+
+import os, grp
+
+group = 
+gid = 
+
+# Ensure to be root
+if os.name == 'posix':
+    me = os.getuid()
+    if me != 0:
+        print "Sorry, you must be root"
+        exit()
+
+# Group retrieve
+def checkGroup(group, gid):
+    try:
+        g = grp.getgrnam(group)
+        return g.gr_gid == gid
+    except KeyError:
+        return False
+
+# Set permissions for /usr/local/vbox
+if os.name == 'posix' and checkGroup(group, gid) == True:
+    print "Set", vbox_setup_dir, "permissions"
+    os.system('chmod -R 775 /usr/local/vbox')
+    os.system('chgrp -R ' group '/usr/local/vbox')
+elif os.name == 'posix':
+    print "Set permissions directory for", vbox_setup_dir, "!"
+    print "   example: chown -R your_user", vbox_setup_dir
+    print "   example: chmod -R 755", vbox_setup_dir
