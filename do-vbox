@@ -9,7 +9,7 @@
 # Local custom settings
 import config
 
-import os, sys, re
+import os, sys, re, getpass
 import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
 import shutil, hashlib, grp
@@ -18,8 +18,9 @@ vbox_repository = config.url
 vbox_repository_list = vbox_repository + 'vbox-index'
 
 if os.name == 'posix':
-	vbox_list_file = '/tmp/vbox-list-file'
-	vbox_setup_dir = '/usr/local/vbox/'
+    vbox_list_file = '/tmp/vbox-list-file'
+    vbox_setup_dir = '/usr/local/vbox/'
+    vbox_user = getpass.getuser()
 
 if len(sys.argv) < 2:
     print help
@@ -90,11 +91,14 @@ def grep(string, filename):
         if match is not None:
             print match.group(0)
 
-# Mkdir
-def makeDir(dir):
+# Ensure of a dir
+def ensDir(dir):
     if not os.path.exists(dir):
         print 'Creating %s' % (dir)
-        os.makedirs(dir, mode=0777)
+        try:
+            os.makedirs(dir, mode=0775)
+        except OSError:
+            print "It seems you don't have permission to create ", dir
     
     os.chmod(dir, 0777)
 
@@ -135,7 +139,7 @@ class VirtualMachine(object):
 	
 	@staticmethod
 	def parseFileList(filename):
-		""" Modo performante secondo Lo """
+		""" Put vbox-index file into a python list """
 		virtual_machines = []
 
 		f = open(filename, "r")
@@ -166,13 +170,14 @@ def unzip(filename, dir):
     for name in vm_zip.namelist():
         if name.endswith('/'):
             try:
-                makeDir(os.path.join(dir, name))
+                ensDir(os.path.join(dir, name))
             except OSError as dir_present_err:
                 print dir_present_err
         
         else:
-            makeDir(dir)
+            ensDir(dir)
             vm_zip.extract(name, dir)
+
 
 # Group retrieve
 def checkGroup(group, gid):
@@ -182,8 +187,6 @@ def checkGroup(group, gid):
     except KeyError:
         return False
 
-
-
 # Parse
 def parse():
     parser = argparse.ArgumentParser()
@@ -191,7 +194,7 @@ def parse():
     parser.add_argument('--update', action='store_true', help='Refresh VM list')
     parser.add_argument('--show', action='store_true', help='Display machines information')
     parser.add_argument('--download', nargs=1, help='Download only in the current dir')
-    parser.add_argument('--setup', nargs=1, help='Download and configure a machine')
+    parser.add_argument('--setup', nargs='+', help='Download and configure a machine')
     return parser.parse_args()
 
 # Parse arguments
@@ -211,8 +214,9 @@ if options.update:
 if options.show:
     listFile()
     readfile(vbox_list_file)
-    
+     
 # --download    
+# Download vm from repository
 if options.download:
     vm_file = options.download[0]
     try:
@@ -222,23 +226,26 @@ if options.download:
         exit()
 
 # --setup
+# Check if 2nd argument (directory path) is given and
+# initialize vbox_setup_dir with that value
 if options.setup:
-    # On unix systems, ensure to be root
-    if os.name == 'posix':
-        me = os.getuid()
-        if me != 0:
-            print "Sorry, you must be root"
-            exit()
-
-	vm_file = options.setup[0]
+    if len(options.setup) < 1:
+        vbox_setup_dir = options.setup[1]
+        ensDir(vbox_setup_dir)
+    else:
+        vbox_setup_dir = vbox_setup_dir + vbox_user + '/'
+        ensDir(vbox_setup_dir)
+    
+    # Download vm from repository  
+    vm_file = options.setup[0]
     try:
        getVm(vbox_repository + vm_file, vm_file)
     except IOError as not_found_err:
         print 'VM "%s" %s' % (vm_file, not_found_err)
         exit()
-	
-	# Perform md5sum on dumped vm
-	print "Retrive md5sum on", vm_file
+    
+    # Perform md5sum on dumped vm
+    print "Retrive md5sum on", vm_file
     md5_vm_zip = md5Sum(vm_file)
     vms = VirtualMachine.parseFileList(vbox_list_file)
     md5_matched = False
@@ -247,57 +254,53 @@ if options.setup:
             md5_matched = True
             md5_vm_name = vm.name
             break
-
+    
     if md5_matched == True:
         print "Md5sum matched for", md5_vm_name, ".."
+
+        # Unpack the vm to vbox_setup_dir
+        print 'Unzip', vm_file, 'to', vbox_setup_dir, '..'
+        unzip(vm_file, vbox_setup_dir)
+
+        # LiNuX
+        # Define directories
+        if os.name == 'posix':
+            if md5_matched == True:
+                vbox_vdi_dir = os.path.splitext(vm_file)
+                vbox_vdi = vbox_vdi_dir[0] + '.vdi'
+                vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir[0] + '/'
+                vbox_name = vbox_vdi_dir[0] 
+                
+                # Change vdi uuid
+                os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
+                
+                # Create VM
+                os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder ' \
+                            + vbox_setup_dir + ' --register')
+                
+                # Setting VM
+                os.system('VBoxManage modifyvm ' + vbox_name + ' --memory 512 --acpi on \
+                            --boot1 disk --nic1 bridged --bridgeadapter1 eth0 \
+                            --ostype WindowsXP --usb on --vram 18')
+                
+                # Create an IDE controller
+                os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" \
+                            --add ide --controller ICH6')
+                
+                # Add vdi to VM
+                os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" \
+                            --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
+               
+                print vbox_name, "successifully created! ^__^"
+                
+
     else:
         print "Md5sum failed, please retry download again"
         print "or send an email to simoneroselli78@gmail.com"
         print "reporting the incident"
 
-    # Unpack the vm to /usr/local/vbox/
-    print 'Unzip', vm_file, 'to', vbox_setup_dir, '..'
-    unzip(vm_file, vbox_setup_dir)
-
-    # Set permissions for /usr/local/vbox
-    if os.name == 'posix' and checkGroup('staff', 50) == True:
-        print "Set", vbox_setup_dir, "staff permissions"
-        os.system('chmod -R 775 /usr/local/vbox')
-        os.system('chgrp -R staff /usr/local/vbox')
-    elif os.name == 'posix':
-        print "Set permissions directory for", vbox_setup_dir, "!"
-        print "   example: chown -R your_user", vbox_setup_dir
-        print "   example: chmod -R 755", vbox_setup_dir
-
-
-    # Change vdi uuid
-	md5_matched = True
-	if os.name == 'posix':
-		if md5_matched == True:
-			vbox_vdi_dir = os.path.splitext(vm_file)
-			vbox_vdi = vbox_vdi_dir[0] + '.vdi'
-			vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir[0]
-			os.chdir(vbox_vdi_path)
-			os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi)
-
-    		# Create VM
-			os.system('VBoxManage createvm --name ' + vbox_vdi_dir + 
-												' --basefolder /home/' + $user + 
-												'.VirtualBox/Machines/ --register')
-			# Setting VM
-			os.system('VBoxManage modifyvm ' + vbox_vdi_dir + ' --memory 512 
-												--acpi on --boot1 disk --nic1 bridged 
-												--bridgeadapter1 eth0 --ostype WindowsXP 
-												--usb on')
-			
-			# Create an IDE controller
-			os.system('VBoxManage storagectl "prova" --name "IDE Controller" 
-												--add ide --controller ICH6')
-			# Add vdi to VM
-			os.system('VBoxManage storageattach ' + vbox_vdi_dir + ' --storagectl "IDE Controller" 
-												--port 0 --device 0 --type hdd 
-												--medium ',  vbox_vdi
-	
-	
-	# Todo
-	# ostype in index (es: "Ostype: WindowsXP")
+# Todo
+# ostype in index (es: "Ostype: WindowsXP")
+# usa la classe VirtualMachine.parsefile anche per il grep dei nomi delle vm
+# use the right unzip library (to get a list) to match name.vdi in a better way
+# Mattew Feature: if a vm is already then add it changing uuid and name (ie: win_home_clean2, win_home_clean3)
