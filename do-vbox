@@ -6,6 +6,8 @@
 # retrieve vm from http repository / install / and
 # configure 
 
+mail_to = "simoneroselli78@gmail.com"
+
 # Local custom settings
 import config
 
@@ -61,8 +63,8 @@ def sizeToHuman(size):
         return '%.2fKiB' % (size / kb)
     return '%dbyte' % size
 
-# Retrive vbox list from http repo and store it in a file
-def listFile():
+# Retrive/update vbox file list from http repo
+def listUpdate():
     resp = urllib2.urlopen(vbox_repository_list, timeout=5)
     vbox_list = resp.read()
     writeFile(vbox_list_file, vbox_list)
@@ -120,41 +122,50 @@ def md5Sum(filename):
 # Create a virtual machines python list (virtual_machines = [] )
 # from vbox-index text file
 class VirtualMachine(object):
-	def __init__(self, name=None, md5=None, desc=None, update=None, size=None):
-		self.name = name
-		self.md5 = md5
-		self.desc = desc
-		self.update = update
-		self.size = size
+    def __init__(self, name=None, md5=None, desc=None, updated=None, size=None, ostype=None, arc=None, ram=None, vram=None, login=None):
+        self.name = name
+        self.md5 = md5
+        self.desc = desc
+        self.updated = updated
+        self.size = size
+        self.ostype = ostype
+        self.arc = arc
+        self.ram = ram
+        self.vram = vram
+        self.login = login
 
-	def isValid(self):
-		return self.name is not None and self.md5 is not None
-	
-	@staticmethod
-	def parseFileList(filename):
-		""" Put vbox-index file into a python list """
-		virtual_machines = []
+    # To print the object as string
+    #def __str__(self):
+     #   return '%s %s %s %s %s' % (self.name, self.md5, self.desc, self.updated, self.size)
 
-		f = open(filename, "r")
-		vm = VirtualMachine()
-		for line in f:
-			line = line.strip()
-			if len(line) == 0:
-				if vm.isValid():
-					virtual_machines.append(vm)
-				vm = VirtualMachine()
-			else:
-				# cerco i : (split su i :)
-				# ottengo key: valore
-				key, value = line.split(':')
-				key = key.strip()
-				value = value.strip()
-				setattr(vm, key, value)				
-		if vm.isValid():
-			virtual_machines.append(vm)
-		f.close()
+    def isValid(self):
+        return self.name is not None and self.md5 is not None
+    
+    @staticmethod
+    def parseFileList(filename):
+        """ Put vbox-index file into a python list """
+        virtual_machines = []
 
-		return virtual_machines
+        f = open(filename, "r")
+        vm = VirtualMachine()
+        for line in f:
+            line = line.strip()
+            if len(line) == 0:
+                if vm.isValid():
+                    virtual_machines.append(vm)
+                vm = VirtualMachine()
+            else:
+                # cerco i : (split su i :)
+                # ottengo key: valore
+                key, value = line.split(':')
+                key = key.strip()
+                value = value.strip()
+                setattr(vm, key, value)             
+        if vm.isValid():
+            virtual_machines.append(vm)
+        f.close()
+
+        return virtual_machines
 
 
 # Unzip
@@ -184,7 +195,6 @@ def checkGroup(group, gid):
 def parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--listname', action='store_true', help='List available machines')
-    parser.add_argument('--update', action='store_true', help='Refresh VM list')
     parser.add_argument('--show', action='store_true', help='Display machines information')
     parser.add_argument('--download', nargs=1, help='Download only in the current dir')
     parser.add_argument('--setup', nargs='+', help='Download and configure a machine')
@@ -201,33 +211,29 @@ if __name__ == '__main__':
     
     # --listname
     if options.listname:
-        listFile()
+        listUpdate()
         grep('name', vbox_list_file)
-
-    # --update
-    if options.update:
-        listFile()
-        print "Vbox list updated!"
 
     # --show
     if options.show:
-        listFile()
+        listUpdate()
         readfile(vbox_list_file)
          
     # --download    
     # Download vm from repository
     if options.download:
-        vm_file = options.download[0]
+        vm_zip = options.download[0]
         try:
-            getVm(vbox_repository + vm_file, vm_file)
+            getVm(vbox_repository + vm_zip, vm_zip)
         except IOError as not_found_err:
-            print 'VM "%s" %s' % (vm_file, not_found_err)
+            print 'VM "%s" %s' % (vm_zip, not_found_err)
             exit()
 
     # --setup
     # Check if 2nd argument (directory path) is given and
     # initialize vbox_setup_dir with that value
     if options.setup:
+        listUpdate()
         if len(options.setup) < 1:
             vbox_setup_dir = options.setup[1]
             ensDir(vbox_setup_dir)
@@ -236,16 +242,17 @@ if __name__ == '__main__':
             ensDir(vbox_setup_dir)
         
         # Download vm from repository  
-        vm_file = options.setup[0]
+        vm_zip = options.setup[0]
         try:
-           getVm(vbox_repository + vm_file, vm_file)
+           getVm(vbox_repository + vm_zip, vm_zip)
         except IOError as not_found_err:
-            print 'VM "%s" %s' % (vm_file, not_found_err)
+            print 'VM "%s" %s' % (vm_zip, not_found_err)
             exit()
         
+        
         # Perform md5sum on dumped vm
-        print "Retrive md5sum on", vm_file
-        md5_vm_zip = md5Sum(vm_file)
+        print "Retrive md5sum on", vm_zip
+        md5_vm_zip = md5Sum(vm_zip)
         vms = VirtualMachine.parseFileList(vbox_list_file)
         md5_matched = False
         for vm in vms:
@@ -258,50 +265,62 @@ if __name__ == '__main__':
             print "Md5sum matched for", md5_vm_name, ".."
 
             # Unpack the vm to vbox_setup_dir
-            print 'Unzip', vm_file, 'to', vbox_setup_dir, '..'
-            unzip(vm_file, vbox_setup_dir)
+            print 'Unzip', vm_zip, 'to', vbox_setup_dir, '..'
+            unzip(vm_zip, vbox_setup_dir)
 
             # LiNuX
-            # Define directories
+            # Define directories and vm name
             if os.name == 'posix':
                 if md5_matched == True:
-                    vbox_vdi_dir = os.path.splitext(vm_file)
-                    vbox_vdi = vbox_vdi_dir[0] + '.vdi'
-                    vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir[0] + '/'
-                    vbox_name = vbox_vdi_dir[0] 
-                    
-                    # Change vdi uuid
-                    os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
-                    
-                    # Create VM
-                    os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder ' \
-                                + vbox_setup_dir + ' --register')
-                    
-                    # Setting VM
-                    os.system('VBoxManage modifyvm ' + vbox_name + ' --memory 512 --acpi on \
-                                --boot1 disk --nic1 bridged --bridgeadapter1 eth0 \
-                                --ostype WindowsXP --usb on --vram 18')
-                    
-                    # Create an IDE controller
-                    os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" \
-                                --add ide --controller ICH6')
-                    
-                    # Add vdi to VM
-                    os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" \
-                                --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
-                   
-                    print vbox_name, "successifully created! ^__^"
+                    # Retrive other values from object 'vm'
+                    vms = VirtualMachine.parseFileList(vbox_list_file)
+                    for vm in vms:
+                        if vm.name == vm_zip:
+                            ostype = vm.ostype
+                            ram = vm.ram
+                            vram = vm.vram
+
+                            vbox_vdi_dir,_ = os.path.splitext(vm_zip)
+                            vbox_vdi = vbox_vdi_dir + '.vdi'
+                            vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
+                            vbox_name = vbox_vdi_dir 
+                            
+
+                            
+                            # Change vdi uuid
+                            os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
+                            
+                            # Create VM
+                            os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder ' \
+                                        + vbox_setup_dir + ' --register')
+                            
+                            # Setting VM
+                            os.system('VBoxManage modifyvm ' + vbox_name + ' --memory ' + ram + ' --acpi on \
+                                        --boot1 disk --nic1 bridged --bridgeadapter1 eth0 \
+                                        --ostype ' + ostype + ' --usb on --vram ' + vram)
+                            
+                            # Create an IDE controller
+                            os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" \
+                                        --add ide --controller ICH6')
+                            
+                            # Add vdi to VM
+                            os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" \
+                                        --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
+
+                            # Remove zip vm archive
+                            os.unlink(vm_zip)
+
+                            print ""                   
+                            print vbox_name, "successifully created! ^__^"
                     
 
         else:
             print "Md5sum failed, please retry download again"
-            print "or send an email to simoneroselli78@gmail.com"
+            print "or send an email to " + mail_to
             print "reporting the incident"
 
 
 
 # Todo
-# ostype in index (es: "Ostype: WindowsXP")
-# usa la classe VirtualMachine.parsefile anche per il grep dei nomi delle vm
-# use the right unzip library (to get a list) to match name.vdi in a better way
 # Mattew Feature: if a vm is already then add it changing uuid and name (ie: win_home_clean2, win_home_clean3)
+# re-deploy "os.system" section using "subprocess"
