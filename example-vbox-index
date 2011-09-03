@@ -1,0 +1,21 @@
+name: Windows_vista.zip
+md5: 8de5d9010943c8e28338b ...
+desc: bla bla
+updated: 2012-04-22
+size: 1.5G
+ostype: Windows
+arc: i386
+ram: 512
+vram: 10
+login: root/toortoor
+
+name: Ubuntu_server_11.04.zip
+md5: 690eb688e34f8bcba5c303 ...
+desc: bla bla
+update: 2011-09-03
+ostype: Linux
+size: 316M
+arc: x86_64
+ram: 512
+vram: 10
+login: user/password
