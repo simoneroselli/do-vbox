@@ -14,7 +14,7 @@ import config
 import os, sys, re, getpass
 import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
-import shutil, hashlib
+import shutil, hashlib, subprocess
 
 # Repository URL definition
 vbox_repository = config.url
@@ -134,10 +134,6 @@ class VirtualMachine(object):
         self.vram = vram
         self.login = login
 
-    # To print the object as string
-    #def __str__(self):
-     #   return '%s %s %s %s %s' % (self.name, self.md5, self.desc, self.updated, self.size)
-
     def isValid(self):
         return self.name is not None and self.md5 is not None
     
@@ -183,13 +179,27 @@ def unzip(filename, dir):
             vm_zip.extract(name, dir)
 
 
-# Group retrieve
-def checkGroup(group, gid):
-    try:
-        g = grp.getgrnam(group)
-        return g.gr_gid == gid
-    except KeyError:
+# Rename vm if it is alredy in your VBox list
+def incrVmName(vm_name):
+    """ Diversifing VM name operation, based on VBoxManage commands suite output """
+    installed_vms = subprocess.check_output(["VBoxManage", "list", "vms"]).split()
+    
+    count = 0
+
+    for item in installed_vms:
+        if item.startswith('{'):
+            continue
+        else:
+            item_list = item.strip('"')
+            if item_list.startswith(vm_name):
+                count += 1
+    
+    if count is not 0:
+        vm_name = '%s%s%d' % (vm_name, '-', count+1)
+        return vm_name
+    else:
         return False
+
 
 # Parse
 def parse():
@@ -263,7 +273,21 @@ if __name__ == '__main__':
         
         if md5_matched == True:
             print "Md5sum matched for", md5_vm_name, ".."
-
+        
+            # In case of vm already exists, append an incremental 
+            # number to name
+            vm_name,_ = os.path.splitext(vm_zip)
+            vm_exist = incrVmName(vm_name)
+            if vm_exist is not False:
+                vm_name = vm_exist
+                
+                # For the vms which are already, unpack stuff into
+                # /tmp, rename files and move them to the path
+                vbox_setup_dir = '/tmp'
+                print 'Unzip', vm_zip, 'to', vbox_setup_dir, '..'
+                unzip(vm_zip, vbox_setup_dir)
+                    
+ 
             # Unpack the vm to vbox_setup_dir
             print 'Unzip', vm_zip, 'to', vbox_setup_dir, '..'
             unzip(vm_zip, vbox_setup_dir)
@@ -285,8 +309,9 @@ if __name__ == '__main__':
                             vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
                             vbox_name = vbox_vdi_dir 
                             
+                            # Handle VM already present in your VirtualBox
+                            incrVmName(vbox_name)
 
-                            
                             # Change vdi uuid
                             os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
                             
@@ -312,7 +337,8 @@ if __name__ == '__main__':
 
                             print ""                   
                             print vbox_name, "successifully created! ^__^"
-                    
+                            print ""
+                                
 
         else:
             print "Md5sum failed, please retry download again"
@@ -324,3 +350,4 @@ if __name__ == '__main__':
 # Todo
 # Mattew Feature: if a vm is already then add it changing uuid and name (ie: win_home_clean2, win_home_clean3)
 # re-deploy "os.system" section using "subprocess"
+# Check if the directory path given as argument is writable by the user
