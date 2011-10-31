@@ -3,8 +3,8 @@
 # Author: ZMo <simoneroselli78gmail.com>
 #
 # Auto-setup for VirtualBox virtual machines:
-# retrieve vm from http repository / install / and
-# configure 
+# retrieve vm from a repository / install / and
+# configure it
 
 mail_to = "simoneroselli78@gmail.com"
 
@@ -19,7 +19,6 @@ import shutil, hashlib, subprocess
 # Repository URL definition
 vbox_repository = config.url
 vbox_repository_list = vbox_repository + 'vbox-index'
-
 
 # Write func
 def writeFile(filename, data):
@@ -93,9 +92,13 @@ def ensDir(dir):
         try:
             os.makedirs(dir, mode=0775)
         except OSError:
-            print "It seems you don't have permission to create ", dir
+            print "..."
+            print "It seems you don't have permission to create the directory"
+            print "Please create", dir, "manually, with ownership: ",vbox_user+":"+vbox_user
+            exit()
+            
     
-    os.chmod(dir, 0777)
+    #os.chmod(dir, 0777)
 
 # Move
 def move(src, dest):
@@ -163,7 +166,6 @@ class VirtualMachine(object):
 
         return virtual_machines
 
-
 # Unzip
 def unzip(filename, dir):
     vm_zip = zipfile.ZipFile(filename)
@@ -178,20 +180,17 @@ def unzip(filename, dir):
             ensDir(dir)
             vm_zip.extract(name, dir)
 
-
 # Rename vm if it is alredy in your VBox list
 def incrVmName(vm_name):
-    """ Diversifing VM name operation, based on VBoxManage commands suite output """
+    """ Diversifying VM name operation, based on VBoxManage commands suite output """
     installed_vms = subprocess.check_output(["VBoxManage", "list", "vms"]).split()
-    
+
     count = 0
 
-    for item in installed_vms:
-        if item.startswith('{'):
-            continue
-        else:
-            item_list = item.strip('"')
-            if item_list.startswith(vm_name):
+    for v in installed_vms:
+        if v.startswith('"'):
+            v = v.strip('"')
+            if v.startswith(vm_name):
                 count += 1
     
     if count is not 0:
@@ -200,6 +199,22 @@ def incrVmName(vm_name):
     else:
         return False
 
+# Rename the zip archive files with increased number
+def incrFiles(name, rename, src, dst):
+    os.chdir(src)
+    os.rename(name, rename)
+    os.chdir(rename)
+    list_file = os.listdir('.')
+    vdi = rename + '.vdi'
+    vbox = rename + '.vbox'
+    for f in list_file:
+        if f.endswith('.vdi'):
+            os.rename(f, vdi)
+        elif f.endswith('.vbox'):
+            os.rename(f, vbox)
+    os.chdir(src)
+    dst = dst + '/' + rename
+    shutil.copytree(rename, dst)
 
 # Parse
 def parse():
@@ -259,7 +274,6 @@ if __name__ == '__main__':
             print 'VM "%s" %s' % (vm_zip, not_found_err)
             exit()
         
-        
         # Perform md5sum on dumped vm
         print "Retrive md5sum on", vm_zip
         md5_vm_zip = md5Sum(vm_zip)
@@ -274,70 +288,67 @@ if __name__ == '__main__':
         if md5_matched == True:
             print "Md5sum matched for", md5_vm_name, ".."
         
-            # In case of vm already exists, append an incremental 
-            # number to name
+            # In case a vm already exists, append an incremental number to the
+            # vm name, unpack vm.zip im /tmp, then copy to the setup folder the
+            # renamed vm
             vm_name,_ = os.path.splitext(vm_zip)
             vm_exist = incrVmName(vm_name)
             if vm_exist is not False:
-                vm_name = vm_exist
-                
-                # For the vms which are already, unpack stuff into
-                # /tmp, rename files and move them to the path
-                vbox_setup_dir = '/tmp'
+                tmp_dir = '/tmp'
+                print 'Unzip', vm_zip, 'to', tmp_dir, '..'
+                unzip(vm_zip, tmp_dir)
+                incrFiles(vm_name, vm_exist, tmp_dir, vbox_setup_dir)
+            else:       
                 print 'Unzip', vm_zip, 'to', vbox_setup_dir, '..'
                 unzip(vm_zip, vbox_setup_dir)
-                    
- 
-            # Unpack the vm to vbox_setup_dir
-            print 'Unzip', vm_zip, 'to', vbox_setup_dir, '..'
-            unzip(vm_zip, vbox_setup_dir)
 
             # LiNuX
             # Define directories and vm name
             if os.name == 'posix':
-                if md5_matched == True:
-                    # Retrive other values from object 'vm'
-                    vms = VirtualMachine.parseFileList(vbox_list_file)
-                    for vm in vms:
-                        if vm.name == vm_zip:
-                            ostype = vm.ostype
-                            ram = vm.ram
-                            vram = vm.vram
-
+                # Retrive other values from object 'vm'
+                vms = VirtualMachine.parseFileList(vbox_list_file)
+                for vm in vms:
+                    if vm.name == vm_zip:
+                        ostype = vm.ostype
+                        ram = vm.ram
+                        vram = vm.vram
+                        if vm_exist is not True:
                             vbox_vdi_dir,_ = os.path.splitext(vm_zip)
                             vbox_vdi = vbox_vdi_dir + '.vdi'
                             vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
                             vbox_name = vbox_vdi_dir 
-                            
-                            # Handle VM already present in your VirtualBox
-                            incrVmName(vbox_name)
+                        elif vm_exist is not False:
+                            vbox_vdi_dir = vm_exist
+                            vbox_vdi = vbox_vdi_dir + '.vdi'
+                            vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
+                            vbox_name = vbox_vdi_dir
 
-                            # Change vdi uuid
-                            os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
-                            
-                            # Create VM
-                            os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder ' \
-                                        + vbox_setup_dir + ' --register')
-                            
-                            # Setting VM
-                            os.system('VBoxManage modifyvm ' + vbox_name + ' --memory ' + ram + ' --acpi on \
-                                        --boot1 disk --nic1 bridged --bridgeadapter1 eth0 \
-                                        --ostype ' + ostype + ' --usb on --vram ' + vram)
-                            
-                            # Create an IDE controller
-                            os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" \
-                                        --add ide --controller ICH6')
-                            
-                            # Add vdi to VM
-                            os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" \
-                                        --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
+                        # Change vdi uuid
+                        os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
+                        
+                        # Create VM
+                        os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder ' \
+                                    + vbox_setup_dir + ' --register')
+                        
+                        # Setting VM
+                        os.system('VBoxManage modifyvm ' + vbox_name + ' --memory ' + ram + ' --acpi on \
+                                    --boot1 disk --nic1 bridged --bridgeadapter1 eth0 \
+                                    --ostype ' + ostype + ' --usb on --vram ' + vram)
+                        
+                        # Create an IDE controller
+                        os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" \
+                                    --add ide --controller ICH6')
+                        
+                        # Add vdi to VM
+                        os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" \
+                                    --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
 
-                            # Remove zip vm archive
-                            os.unlink(vm_zip)
+                        # Remove zip vm archive
+                        #os.unlink(vm_zip)
 
-                            print ""                   
-                            print vbox_name, "successifully created! ^__^"
-                            print ""
+                        print ""                   
+                        print vbox_name, "successifully created! ^__^"
+                        print ""
                                 
 
         else:
@@ -346,8 +357,8 @@ if __name__ == '__main__':
             print "reporting the incident"
 
 
-
 # Todo
-# Mattew Feature: if a vm is already then add it changing uuid and name (ie: win_home_clean2, win_home_clean3)
+# Handle: if the directory path given as argument is writable by the user
+# Comment the code
+# Wish
 # re-deploy "os.system" section using "subprocess"
-# Check if the directory path given as argument is writable by the user
