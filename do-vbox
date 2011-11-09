@@ -62,7 +62,7 @@ def sizeToHuman(size):
         return '%.2fKiB' % (size / kb)
     return '%dbyte' % size
 
-# Retrive/update vbox file list from http repo
+# Retrieve/update vbox file list from http repo
 def listUpdate():
     resp = urllib2.urlopen(vbox_repository_list, timeout=5)
     vbox_list = resp.read()
@@ -275,7 +275,7 @@ if __name__ == '__main__':
             exit()
         
         # Perform md5sum on dumped vm
-        print "Retrive md5sum on", vm_zip
+        print "Retrieve md5sum on", vm_zip
         md5_vm_zip = md5Sum(vm_zip)
         vms = VirtualMachine.parseFileList(vbox_list_file)
         md5_matched = False
@@ -317,7 +317,8 @@ if __name__ == '__main__':
                             vbox_vdi = vbox_vdi_dir + '.vdi'
                             vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
                             vbox_name = vbox_vdi_dir 
-                        elif vm_exist is not False:
+                        
+                        if vm_exist is not False:
                             vbox_vdi_dir = vm_exist
                             vbox_vdi = vbox_vdi_dir + '.vdi'
                             vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
@@ -347,7 +348,7 @@ if __name__ == '__main__':
                         #os.unlink(vm_zip)
 
                         print ""                   
-                        print vbox_name, "successifully created! ^__^"
+                        print "VM", vbox_name, "successifully created! ^__^"
                         print ""
                                 
 
@@ -358,7 +359,7 @@ if __name__ == '__main__':
 
 
 # Todo
-# Handle: if the directory path given as argument is writable by the user
+# Always unpack in /tmp
+# Clean /tmp directory at start (use vm_name)
 # Comment the code
-# Wish
-# re-deploy "os.system" section using "subprocess"
+# If a vm is marked as "unavailable", stop running with "clean your env" message ..
