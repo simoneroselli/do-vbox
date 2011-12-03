@@ -295,11 +295,11 @@ if __name__ == '__main__':
             vm_exist = incrVmName(vm_name)
             if vm_exist is not False:
                 tmp_dir = '/tmp'
-                print 'Unzip', vm_zip, 'to', tmp_dir, '..'
+                print 'Extract', vm_zip, 'to', tmp_dir, '..'
                 unzip(vm_zip, tmp_dir)
                 incrFiles(vm_name, vm_exist, tmp_dir, vbox_setup_dir)
             else:       
-                print 'Unzip', vm_zip, 'to', vbox_setup_dir, '..'
+                print 'Extract', vm_zip, 'to', vbox_setup_dir, '..'
                 unzip(vm_zip, vbox_setup_dir)
 
             # LiNuX
@@ -357,9 +357,3 @@ if __name__ == '__main__':
             print "or send an email to " + mail_to
             print "reporting the incident"
 
-
-# Todo
-# Always unpack in /tmp
-# Clean /tmp directory at start (use vm_name)
-# Comment the code
-# If a vm is marked as "unavailable", stop running with "clean your env" message ..
