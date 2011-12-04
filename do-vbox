@@ -10,11 +10,12 @@ mail_to = "simoneroselli78@gmail.com"
 
 # Local custom settings
 import config
+from libdovbox import *
 
 import os, sys, re, getpass
 import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
-import shutil, hashlib, subprocess
+import shutil, subprocess
 
 # Repository URL definition
 vbox_repository = config.url
@@ -68,6 +69,24 @@ def listUpdate():
     vbox_list = resp.read()
     writeFile(vbox_list_file, vbox_list)
 
+# Show VM
+def show(vm_name):
+    vms = VirtualMachine.parseFileList(vbox_list_file)
+    for vm in vms:
+        if vm_name == vm.name:
+            for key, value in vm.__dict__.items():
+                if value: print(key + ': ' + value)
+
+# Search
+def search(name):
+    vms = VirtualMachine.parseFileList(vbox_list_file)
+    for vm in vms:
+        if grep(name, vbox_list_file):
+            break
+        
+        return vm.name
+
+
 # Read
 def readfile(filename):
     f = file(filename)
@@ -81,7 +100,7 @@ def readfile(filename):
 # Grep
 def grep(string, filename):
     for line in open(filename).readlines():
-        match = re.search(string + '.*', line)
+        match = re.search(string + '.*', line, re.IGNORECASE)
         if match is not None:
             print match.group(0)
 
@@ -98,8 +117,6 @@ def ensDir(dir):
             exit()
             
     
-    #os.chmod(dir, 0777)
-
 # Move
 def move(src, dest):
     if os.path.isdir(dest):
@@ -107,64 +124,6 @@ def move(src, dest):
     else:
         os.makedirs(dest, mode=0777)
         shutil.move(src, dest)
-
-# MD5 sum
-def md5Sum(filename):
-    f = open(filename, 'r')
-    md5 = hashlib.md5()
-    while True:
-        data = f.read(8196)
-        if not data:
-            break
-        md5.update(data)
-
-    md5hash = md5.hexdigest()
-    f.close()
-    return md5hash
-
-# Create a virtual machines python list (virtual_machines = [] )
-# from vbox-index text file
-class VirtualMachine(object):
-    def __init__(self, name=None, md5=None, desc=None, updated=None, size=None, ostype=None, arc=None, ram=None, vram=None, login=None):
-        self.name = name
-        self.md5 = md5
-        self.desc = desc
-        self.updated = updated
-        self.size = size
-        self.ostype = ostype
-        self.arc = arc
-        self.ram = ram
-        self.vram = vram
-        self.login = login
-
-    def isValid(self):
-        return self.name is not None and self.md5 is not None
-    
-    @staticmethod
-    def parseFileList(filename):
-        """ Put vbox-index file into a python list """
-        virtual_machines = []
-
-        f = open(filename, "r")
-        vm = VirtualMachine()
-        for line in f:
-            line = line.strip()
-            if len(line) == 0:
-                if vm.isValid():
-                    virtual_machines.append(vm)
-                vm = VirtualMachine()
-            else:
-                # cerco i : (split su i :)
-                # ottengo key: valore
-                key, value = line.split(':')
-                key = key.strip()
-                value = value.strip()
-                setattr(vm, key, value)             
-        if vm.isValid():
-            virtual_machines.append(vm)
-        f.close()
-
-        return virtual_machines
 
 # Unzip
 def unzip(filename, dir):
@@ -219,11 +178,14 @@ def incrFiles(name, rename, src, dst):
 # Parse
 def parse():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--listname', action='store_true', help='List available machines')
-    parser.add_argument('--show', action='store_true', help='Display machines information')
+    parser.add_argument('--list', action='store_true', help='List available machines')
+    parser.add_argument('--index', action='store_true', help='Display the whole index file')
+    parser.add_argument('--show', nargs=1, help='Display vm property')
+    parser.add_argument('--search', nargs=1, help='Search for a vm by name')
     parser.add_argument('--download', nargs=1, help='Download only in the current dir')
     parser.add_argument('--setup', nargs='+', help='Download and configure a machine')
     return parser.parse_args()
+
 
 # Parse arguments
 options = parse()
@@ -234,24 +196,32 @@ if __name__ == '__main__':
         vbox_setup_dir = '/usr/local/vbox/'
         vbox_user = getpass.getuser()
     
-    # --listname
-    if options.listname:
+    # --list
+    if options.list:
         listUpdate()
         grep('name', vbox_list_file)
 
-    # --show
-    if options.show:
+    # --index
+    if options.index:
         listUpdate()
         readfile(vbox_list_file)
          
+    # --show
+    if options.show:
+        show(sys.argv[2])
+
+    # --search
+    if options.search:
+        search(sys.argv[2])
+
     # --download    
     # Download vm from repository
     if options.download:
-        vm_zip = options.download[0]
+        down_vm = options.download[0]
         try:
-            getVm(vbox_repository + vm_zip, vm_zip)
+            getVm(vbox_repository + down_vm + '.zip', down_vm + '.zip')
         except IOError as not_found_err:
-            print 'VM "%s" %s' % (vm_zip, not_found_err)
+            print 'VM "%s" %s' % (down_vm, not_found_err)
             exit()
 
     # --setup
@@ -259,7 +229,7 @@ if __name__ == '__main__':
     # initialize vbox_setup_dir with that value
     if options.setup:
         listUpdate()
-        if len(options.setup) < 1:
+        if len(options.setup) > 1:
             vbox_setup_dir = options.setup[1]
             ensDir(vbox_setup_dir)
         else:
@@ -267,62 +237,81 @@ if __name__ == '__main__':
             ensDir(vbox_setup_dir)
         
         # Download vm from repository  
-        vm_zip = options.setup[0]
+        setup_vm = options.setup[0]
+        setup_vm_zip = setup_vm + '.zip'
         try:
-           getVm(vbox_repository + vm_zip, vm_zip)
+           getVm(vbox_repository + setup_vm_zip, setup_vm_zip)
         except IOError as not_found_err:
-            print 'VM "%s" %s' % (vm_zip, not_found_err)
+            print 'VM "%s" %s' % (setup_vm, not_found_err)
             exit()
+
+        # TESTING
+        #setup_vm = options.setup[0]
+        #setup_vm_zip = 'test/Ubuntu_server_11.04.zip'
         
         # Perform md5sum on dumped vm
-        print "Retrieve md5sum on", vm_zip
-        md5_vm_zip = md5Sum(vm_zip)
+        print "Retrieve md5sum on", setup_vm
+        md5_vm_zip = md5Sum(setup_vm_zip)
         vms = VirtualMachine.parseFileList(vbox_list_file)
         md5_matched = False
         for vm in vms:
             if vm.md5 == md5_vm_zip:
                 md5_matched = True
-                md5_vm_name = vm.name
+                setup_vm = vm.name
                 break
         
         if md5_matched == True:
-            print "Md5sum matched for", md5_vm_name, ".."
+            print "Md5sum matched for", setup_vm, ".."
         
             # In case a vm already exists, append an incremental number to the
             # vm name, unpack vm.zip im /tmp, then copy to the setup folder the
             # renamed vm
-            vm_name,_ = os.path.splitext(vm_zip)
-            vm_exist = incrVmName(vm_name)
-            if vm_exist is not False:
+            #vm_name,_ = os.path.splitext(vm_zip)
+            exist_vm = incrVmName(setup_vm)
+            if exist_vm is not False:
                 tmp_dir = '/tmp'
-                print 'Extract', vm_zip, 'to', tmp_dir, '..'
-                unzip(vm_zip, tmp_dir)
-                incrFiles(vm_name, vm_exist, tmp_dir, vbox_setup_dir)
+                print 'Extract', setup_vm_zip, 'to', tmp_dir, '..'
+                unzip(setup_vm_zip, tmp_dir)
+                incrFiles(setup_vm, exist_vm, tmp_dir, vbox_setup_dir)
             else:       
-                print 'Extract', vm_zip, 'to', vbox_setup_dir, '..'
-                unzip(vm_zip, vbox_setup_dir)
-
+                print 'Extract', setup_vm_zip, 'to', vbox_setup_dir, '..'
+                unzip(setup_vm_zip, vbox_setup_dir)
+                
             # LiNuX
             # Define directories and vm name
             if os.name == 'posix':
-                # Retrive other values from object 'vm'
+                # Retrive other values from object 'vm'; put some default values in
+                # presence of 'None'
                 vms = VirtualMachine.parseFileList(vbox_list_file)
                 for vm in vms:
-                    if vm.name == vm_zip:
-                        ostype = vm.ostype
-                        ram = vm.ram
-                        vram = vm.vram
-                        if vm_exist is not True:
-                            vbox_vdi_dir,_ = os.path.splitext(vm_zip)
-                            vbox_vdi = vbox_vdi_dir + '.vdi'
-                            vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
-                            vbox_name = vbox_vdi_dir 
+                    if vm.name == setup_vm:
+                        if vm.ostype is not None:
+                            ostype = vm.ostype
+                        else:
+                            ostype = Linux
+
+                        if vm.ram is not None:
+                            ram = vm.ram
+                        else:
+                            ram = 256
+
+                        if vm.vram is not None:
+                            vram = vm.vram
+                        else:
+                            vram = 10
+
+                        if exist_vm is not True:
+                            vbox_vdi_dir = setup_vm
+                            vbox_vdi = setup_vm + '.vdi'
+                            vbox_vdi_path = vbox_setup_dir + setup_vm + '/'
+                            vbox_name = setup_vm
                         
-                        if vm_exist is not False:
-                            vbox_vdi_dir = vm_exist
-                            vbox_vdi = vbox_vdi_dir + '.vdi'
-                            vbox_vdi_path = vbox_setup_dir + vbox_vdi_dir + '/'
-                            vbox_name = vbox_vdi_dir
+                        if exist_vm is not False:
+                            vbox_vdi_dir = exist_vm
+                            vbox_vdi = exist_vm + '.vdi'
+                            vbox_vdi_path = vbox_setup_dir + exist_vm + '/'
+                            vbox_name = exist_vm
+
 
                         # Change vdi uuid
                         os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
