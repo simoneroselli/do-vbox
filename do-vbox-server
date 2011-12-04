@@ -1,0 +1,35 @@
+#!/usr/bin/env python
+
+from libdovbox import *
+import os, sys
+
+def genIndex(repo_path):
+    # Leggo il vecchio index, creo un dict che come chiave l'md5 e mi
+    # restituisce l'insieme di valori che compone la vm
+    last_index = VirtualMachine.parseFileList(os.path.join(repo_path,'vbox-index'))
+    last_index = dict((vm.md5, vm) for vm in last_index)
+    # ls *.zip
+    new_index = []
+    for root,dirs,files in os.walk(repo_path):
+        for name in files:
+            if name.endswith('.zip'):
+                # Calcolo l'md5 di ogni file.zip del ciclo
+                md5 = md5Sum(os.path.join(root,name))
+                # Se l'md5 e' nella lista prendi il valore vm (che e' quello
+                # fillato a mano con tutte le informazioni); altrimenti la vm
+                # ha come  valori i soli campi "name:" e "md5:"
+                if md5 in last_index:
+                   vm = last_index[md5]
+                else:
+                    # TODO: estrarre commento dal file.zip
+                    vm = VirtualMachine(name=name[:-4], md5=md5)
+                # Appendi la vm al nuovo file index
+                new_index.append(vm)
+    # Scrivo il file con tutte le vm sul disco con la funzione VirtualMachine.saveFileList()
+    VirtualMachine.saveFileList(os.path.join(repo_path, 'vbox-index'), new_index)
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'Usage do-vbox-server <path_to_repository>'
+    else:
+        genIndex(sys.argv[1])
