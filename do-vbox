@@ -78,14 +78,13 @@ def show(vm_name):
                 if value: print(key + ': ' + value)
 
 # Search
-def search(name):
+def search(vm_name):
     vms = VirtualMachine.parseFileList(vbox_list_file)
     for vm in vms:
-        if grep(name, vbox_list_file):
-            break
+        match = re.search(vm_name, vm.name, re.IGNORECASE)
+        if match is not None:
+            print vm.name, '-', vm.desc
         
-        return vm.name
-
 
 # Read
 def readfile(filename):
