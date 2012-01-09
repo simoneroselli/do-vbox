@@ -10,12 +10,13 @@ mail_to = "simoneroselli78@gmail.com"
 
 # Local custom settings
 import config
+
 from libdovbox import *
 
 import os, sys, re, getpass
 import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
-import shutil, subprocess
+import shutil, subprocess, time
 
 # Repository URL definition
 vbox_repository = config.url
@@ -124,6 +125,18 @@ def move(src, dest):
         os.makedirs(dest, mode=0777)
         shutil.move(src, dest)
 
+# Zip
+def zipVm(dirname):
+    vm_zip = zipfile.ZipFile(dirname + '.zip', 'w', allowZip64=True)
+    
+    for root, dirs, files in os.walk(dirname):
+        for name in files:
+            name = os.path.join(root, name)
+            print 'Compressing', name, '...'
+            vm_zip.write(name, compress_type=zipfile.ZIP_DEFLATED)
+        
+    vm_zip.close()
+
 # Unzip
 def unzip(filename, dir):
     vm_zip = zipfile.ZipFile(filename)
@@ -176,13 +189,22 @@ def incrFiles(name, rename, src, dst):
 
 # Parse
 def parse():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--list', action='store_true', help='List available machines')
-    parser.add_argument('--index', action='store_true', help='Display the whole index file')
-    parser.add_argument('--show', nargs=1, help='Display vm property')
-    parser.add_argument('--search', nargs=1, help='Search for a vm by name')
-    parser.add_argument('--download', nargs=1, help='Download only in the current dir')
-    parser.add_argument('--setup', nargs='+', help='Download and configure a machine')
+    parser = argparse.ArgumentParser(add_help=False, usage='\n \
+    --list                          list available machines\n \
+    --index                         display the whole index file\n \
+    --show VM_NAME                  display vm property\n \
+    --search <STR>                  search for a vm by name\n \
+    --download VM_NAME              download vm in the current dir\n \
+    --setup VM_NAME [path]          download and configure vbox machines\n \
+    --commit VM_NAME [custom_name]  upload your custom vm to the repository')
+    
+    parser.add_argument('--list', action='store_true', help='list available machines')
+    parser.add_argument('--index', action='store_true', help='display the whole index file')
+    parser.add_argument('--show', nargs=1, help='display vm property')
+    parser.add_argument('--search', nargs=1, help='search for a vm by name')
+    parser.add_argument('--download', nargs=1, help='download vm in the current dir')
+    parser.add_argument('--setup', nargs='+', help='download and configure vbox machines')
+    parser.add_argument('--commit', nargs='+', help='upload your custom vm to the repository') 
     return parser.parse_args()
 
 
@@ -214,7 +236,6 @@ if __name__ == '__main__':
         search(sys.argv[2])
 
     # --download    
-    # Download vm from repository
     if options.download:
         down_vm = options.download[0]
         try:
@@ -222,6 +243,81 @@ if __name__ == '__main__':
         except IOError as not_found_err:
             print 'VM "%s" %s' % (down_vm, not_found_err)
             exit()
+
+    # --commit
+    if options.commit:
+        vm_name = options.commit[0]
+        new_name = ''
+        vbox_setup_dir = vbox_setup_dir + vbox_user + '/'
+
+        if len(options.commit) > 1:
+            new_name = options.commit[1]
+
+        # Create vm zip archive and store vm properties in it
+        for root, dirs, files in os.walk(vbox_setup_dir):
+            for name in dirs:
+                # Check if vm you want to compress exists in path
+                if name == vm_name:
+                    VM_DESC = raw_input('Describe shortly your custom vm: ')
+                    zipVm(root + name)
+
+                    # Open the zip archive to append vm properties
+                    zip = vbox_setup_dir + vm_name + '.zip'
+                    vm_zip = zipfile.ZipFile(zip, 'a')
+                    x = ''
+                    
+                    # Retrieve VM properties
+                    tmpfile = '/tmp/filedelcazzo.txt'
+                    vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
+                    f = open(tmpfile, 'w')
+                    f.write(vm_properties)
+                    f.close()
+                    
+                    for line in open(tmpfile).readlines():
+                        if re.match('os type', line, re.IGNORECASE):
+                            VM_OSTYPE = line.split()[2]
+                        if re.match('memory', line, re.IGNORECASE):
+                            VM_RAM = line.split()[2]
+                        if re.match('vram', line, re.IGNORECASE):
+                            VM_VRAM = line.split()[2]
+
+                    # Check if a new vm name has been provided 
+                    if new_name:
+                        VM_NAME = new_name
+                        new_name_zip = new_name + '.zip'
+                        new_zip = vbox_setup_dir + new_name_zip
+                        os.rename(zip, new_zip)
+                        zip = new_zip
+                    else:
+                        VM_NAME = vm_name
+
+                    # Some other vm properties 
+                    VM_MD5SUM = md5Sum(zip)
+                    VM_UPDATED = date_time=time.localtime(time.time())[:3]
+                    VM_SIZE = os.path.getsize(zip)
+
+                    try:
+                        VM_VALUES = {
+                        'name' : VM_NAME, 
+                        'md5' : VM_MD5SUM,                                                                                  
+                        'desc' : VM_DESC,                                                
+                        'update' : str(VM_UPDATED),                                                                                      
+                        'ostype' : VM_OSTYPE,                                                                                      
+                        'size' : str(VM_SIZE),                                                                                      
+                        'ram' : VM_RAM,                                                                                      
+                        'vram' : VM_VRAM                                                                                      
+                        }
+
+                        info = zipfile.ZipInfo('x')
+                        info.compress_type=zipfile.ZIP_DEFLATED
+                        info.comment= repr(VM_VALUES)
+                        vm_zip.writestr(info, x)
+                    finally:
+                        vm_zip.close() 
+                        os.unlink(tmpfile)
+
+
+
 
     # --setup
     # Check if 2nd argument (directory path) is given and
