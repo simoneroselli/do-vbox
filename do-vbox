@@ -151,6 +151,23 @@ def unzip(filename, dir):
             ensDir(dir)
             vm_zip.extract(name, dir)
 
+# Copy and rename vm tree for commit
+def renCopy(dirname, rename):
+    shutil.copytree(dirname, rename)
+    for root, dirs, files in os.walk(rename):
+        for f in files:
+            f = os.path.join(root, f)
+            vdi = os.path.join(root, rename + '.vdi')
+            vbox = os.path.join(root, rename + '.vbox')
+            vboxprev = os.path.join(root, rename + '.vbox-prev')
+            if f.endswith('.vdi'):
+                os.rename(f, vdi)
+                subprocess.call(['VBoxManage', 'internalcommands', 'sethduuid', vdi])
+            elif f.endswith('.vbox'):
+                os.rename(f, vbox)
+            elif f.endswith('vbox-prev'):
+                os.rename(f, vboxprev)
+
 # Rename vm if it is alredy in your VBox list
 def incrVmName(vm_name):
     """ Diversifying VM name operation, based on VBoxManage commands suite output """
@@ -259,7 +276,10 @@ if __name__ == '__main__':
                 # Check if vm you want to compress exists in path
                 if name == vm_name:
                     VM_DESC = raw_input('Describe shortly your custom vm: ')
-                    zipVm(root + name)
+                    os.chdir(vbox_setup_dir)
+                    renCopy(name, new_name)
+                    zipVm(new_name)
+                    exit()
 
                     # Open the zip archive to append vm properties
                     zip = vbox_setup_dir + vm_name + '.zip'
@@ -267,7 +287,7 @@ if __name__ == '__main__':
                     x = ''
                     
                     # Retrieve VM properties
-                    tmpfile = '/tmp/filedelcazzo.txt'
+                    tmpfile = '/tmp/file.txt'
                     vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
                     f = open(tmpfile, 'w')
                     f.write(vm_properties)
