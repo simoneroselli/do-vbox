@@ -8,9 +8,6 @@
 
 mail_to = "simoneroselli78@gmail.com"
 
-# Local custom settings
-import config
-
 from libdovbox import *
 
 import os, sys, re, getpass
@@ -18,15 +15,89 @@ import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
 import shutil, subprocess, time
 
-# Repository URL definition
-vbox_repository = config.url
-vbox_repository_list = vbox_repository + 'vbox-index'
+vbox_sources = '/usr/local/vbox/sroselli/repos'
+vbox_list_file = '/tmp/vbox-index'
 
-# Write func
-def writeFile(filename, data):
-    fd = open(filename, 'w')
-    fd.write(data)
-    fd.close()
+# Read
+def readfile(filename):
+    f = file(filename)
+    while True:
+        line = f.readline()
+        if len(line) == 0:
+            break
+        print line,
+    f.close()
+
+# Grep
+def grep(string, filename):
+    for line in open(filename).readlines():
+        match = re.search(string + '.*', line, re.IGNORECASE)
+        if match is not None:
+            print match.group(0)
+
+# Move
+def move(src, dest):
+    if os.path.isdir(dest):
+        shutil.move(src, dest)
+    else:
+        os.makedirs(dest, mode=0777)
+        shutil.move(src, dest)
+
+# Show
+def show(vm_name):
+    vms = VirtualMachine.parseFileList(vbox_list_file)
+    for vm in vms:
+        if vm_name == vm.name:
+            for key, value in vm.__dict__.items():
+                if value: print(key + ': ' + value)
+
+# Search
+def search(vm_name):
+    vms = VirtualMachine.parseFileList(vbox_list_file)
+    for vm in vms:
+        match = re.search(vm_name, vm.name, re.IGNORECASE)
+        if match is not None:
+            print vm.name, '-', vm.desc
+        
+
+
+# Zip
+def zipVm(dirname):
+    vm_zip = zipfile.ZipFile(dirname + '.zip', 'w', allowZip64=True)
+    
+    for root, dirs, files in os.walk(dirname):
+        for name in files:
+            name = os.path.join(root, name)
+            print 'Compressing', name, '...'
+            vm_zip.write(name, compress_type=zipfile.ZIP_DEFLATED)
+        
+    vm_zip.close()
+
+# Unzip
+def unzip(filename, dir):
+    vm_zip = zipfile.ZipFile(filename)
+    for name in vm_zip.namelist():
+        if name.endswith('/'):
+            try:
+                ensDir(os.path.join(dir, name))
+            except OSError as dir_present_err:
+                print dir_present_err
+        
+        else:
+            ensDir(dir)
+            vm_zip.extract(name, dir)
+
+# Check setup dir
+def ensDir(dir):
+    if not os.path.exists(dir):
+        print 'Creating %s' % (dir)
+        try:
+            os.makedirs(dir, mode=0775)
+        except OSError:
+            print "..."
+            print "It seems you don't have permission to create the directory"
+            print "Please create", dir, "manually, with ownership: ",vbox_user+":"+vbox_user
+            exit()
 
 # Parse URL
 def getVm(url, local_file):
@@ -64,95 +135,34 @@ def sizeToHuman(size):
         return '%.2fKiB' % (size / kb)
     return '%dbyte' % size
 
-# Retrieve/update vbox file list from http repo
+# Build vbox-index file
 def listUpdate():
-    resp = urllib2.urlopen(vbox_repository_list, timeout=5)
-    vbox_list = resp.read()
-    writeFile(vbox_list_file, vbox_list)
+    """ Retrieve vm from all repositories in 'repos' file """
+    if os.path.exists(vbox_list_file):
+        os.unlink(vbox_list_file)
 
-# Show VM
-def show(vm_name):
-    vms = VirtualMachine.parseFileList(vbox_list_file)
-    for vm in vms:
-        if vm_name == vm.name:
-            for key, value in vm.__dict__.items():
-                if value: print(key + ': ' + value)
+    vbox_repository = []
+    for r in open(vbox_sources).readlines():
+        if not r.startswith('repo'):
+            continue
 
-# Search
-def search(vm_name):
-    vms = VirtualMachine.parseFileList(vbox_list_file)
-    for vm in vms:
-        match = re.search(vm_name, vm.name, re.IGNORECASE)
-        if match is not None:
-            print vm.name, '-', vm.desc
-        
+        m = re.search('repo.*', r)
+        if m is not None:
+            m = m.group(0)
+            vbox_repository.extend([m.split('=')[1].strip()])
 
-# Read
-def readfile(filename):
-    f = file(filename)
-    while True:
-        line = f.readline()
-        if len(line) == 0:
-            break
-        print line,
-    f.close()
-
-# Grep
-def grep(string, filename):
-    for line in open(filename).readlines():
-        match = re.search(string + '.*', line, re.IGNORECASE)
-        if match is not None:
-            print match.group(0)
-
-# Ensure of a dir
-def ensDir(dir):
-    if not os.path.exists(dir):
-        print 'Creating %s' % (dir)
-        try:
-            os.makedirs(dir, mode=0775)
-        except OSError:
-            print "..."
-            print "It seems you don't have permission to create the directory"
-            print "Please create", dir, "manually, with ownership: ",vbox_user+":"+vbox_user
-            exit()
-            
-    
-# Move
-def move(src, dest):
-    if os.path.isdir(dest):
-        shutil.move(src, dest)
-    else:
-        os.makedirs(dest, mode=0777)
-        shutil.move(src, dest)
-
-# Zip
-def zipVm(dirname):
-    vm_zip = zipfile.ZipFile(dirname + '.zip', 'w', allowZip64=True)
-    
-    for root, dirs, files in os.walk(dirname):
-        for name in files:
-            name = os.path.join(root, name)
-            print 'Compressing', name, '...'
-            vm_zip.write(name, compress_type=zipfile.ZIP_DEFLATED)
-        
-    vm_zip.close()
-
-# Unzip
-def unzip(filename, dir):
-    vm_zip = zipfile.ZipFile(filename)
-    for name in vm_zip.namelist():
-        if name.endswith('/'):
-            try:
-                ensDir(os.path.join(dir, name))
-            except OSError as dir_present_err:
-                print dir_present_err
-        
-        else:
-            ensDir(dir)
-            vm_zip.extract(name, dir)
+    for r in vbox_repository:
+        repo = r + 'vbox-index'
+        resp = urllib2.urlopen(repo, timeout=5)
+        vbox_list = resp.read()
+        fd = open(vbox_list_file, 'a')
+        fd.write(vbox_list)
+        fd.write('\n')
+        fd.close()
 
 # Copy and rename vm tree for commit
 def renCopy(dirname, rename):
+    """ Copy and rename vm tree before commit your custom vm """
     shutil.copytree(dirname, rename)
     for root, dirs, files in os.walk(rename):
         for f in files:
@@ -189,6 +199,7 @@ def incrVmName(vm_name):
 
 # Rename the zip archive files with increased number
 def incrFiles(name, rename, src, dst):
+    """ Rename zip archive files with an increased number """
     os.chdir(src)
     os.rename(name, rename)
     os.chdir(rename)
@@ -204,6 +215,7 @@ def incrFiles(name, rename, src, dst):
     dst = dst + '/' + rename
     shutil.copytree(rename, dst)
 
+# Be aware virtualbox service is running
 def checkVbox():
     """ Check if virtualbox service is running """
     checkm = subprocess.call("lsmod | grep vbox", shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -233,7 +245,6 @@ def parse():
     return parser.parse_args()
 
 
-# Parse arguments
 options = parse()
 
 if __name__ == '__main__':
@@ -254,10 +265,12 @@ if __name__ == '__main__':
          
     # --show
     if options.show:
+        listUpdate()
         show(sys.argv[2])
 
     # --search
     if options.search:
+        listUpdate()
         search(sys.argv[2])
 
     # --download    
