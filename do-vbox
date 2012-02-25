@@ -204,6 +204,14 @@ def incrFiles(name, rename, src, dst):
     dst = dst + '/' + rename
     shutil.copytree(rename, dst)
 
+def checkVbox():
+    """ Check if virtualbox service is running """
+    checkm = subprocess.call("lsmod | grep vbox", shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    if checkm == 1:
+        print "VBox service is not running." 
+        print "Try with 'service vboxdrv start'"
+        exit()
+
 # Parse
 def parse():
     parser = argparse.ArgumentParser(add_help=False, usage='\n \
@@ -263,6 +271,7 @@ if __name__ == '__main__':
 
     # --commit
     if options.commit:
+        checkVbox()
         vm_name = options.commit[0]
         new_name = ''
         vbox_setup_dir = vbox_setup_dir + vbox_user + '/'
@@ -343,6 +352,7 @@ if __name__ == '__main__':
     # Check if 2nd argument (directory path) is given and
     # initialize vbox_setup_dir with that value
     if options.setup:
+        checkVbox()
         listUpdate()
         if len(options.setup) > 1:
             vbox_setup_dir = options.setup[1]
