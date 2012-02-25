@@ -4,7 +4,7 @@
 #
 # Auto-setup for VirtualBox virtual machines:
 # retrieve vm from a repository / install / and
-# configure it
+# configure. Also commit a custom vm on a repository.
 
 mail_to = "simoneroselli78@gmail.com"
 
@@ -15,7 +15,9 @@ import urllib, urllib2, httplib
 import argparse, urlparse, zipfile
 import shutil, subprocess, time
 
-vbox_sources = '/usr/local/vbox/sroselli/repos'
+vbox_user = getpass.getuser()
+vbox_setup_dir = '/usr/local/vbox/' + vbox_user + '/'
+vbox_sources = vbox_setup_dir + 'repos'
 vbox_list_file = '/tmp/vbox-index'
 
 # Read
@@ -59,8 +61,6 @@ def search(vm_name):
         if match is not None:
             print vm.name, '-', vm.desc
         
-
-
 # Zip
 def zipVm(dirname):
     vm_zip = zipfile.ZipFile(dirname + '.zip', 'w', allowZip64=True)
@@ -248,11 +248,6 @@ def parse():
 options = parse()
 
 if __name__ == '__main__':
-    if os.name == 'posix':
-        vbox_list_file = '/tmp/vbox-list-file'
-        vbox_setup_dir = '/usr/local/vbox/'
-        vbox_user = getpass.getuser()
-    
     # --list
     if options.list:
         listUpdate()
@@ -287,7 +282,6 @@ if __name__ == '__main__':
         checkVbox()
         vm_name = options.commit[0]
         new_name = ''
-        vbox_setup_dir = vbox_setup_dir + vbox_user + '/'
 
         if len(options.commit) > 1:
             new_name = options.commit[1]
@@ -359,8 +353,6 @@ if __name__ == '__main__':
                         os.unlink(tmpfile)
 
 
-
-
     # --setup
     # Check if 2nd argument (directory path) is given and
     # initialize vbox_setup_dir with that value
@@ -383,10 +375,6 @@ if __name__ == '__main__':
             print 'VM "%s" %s' % (setup_vm, not_found_err)
             exit()
 
-        # TESTING
-        #setup_vm = options.setup[0]
-        #setup_vm_zip = 'test/Ubuntu_server_11.04.zip'
-        
         # Perform md5sum on dumped vm
         print "Retrieve md5sum on", setup_vm
         md5_vm_zip = md5Sum(setup_vm_zip)
@@ -404,7 +392,6 @@ if __name__ == '__main__':
             # In case a vm already exists, append an incremental number to the
             # vm name, unpack vm.zip im /tmp, then copy to the setup folder the
             # renamed vm
-            #vm_name,_ = os.path.splitext(vm_zip)
             exist_vm = incrVmName(setup_vm)
             if exist_vm is not False:
                 tmp_dir = '/tmp'
@@ -481,6 +468,4 @@ if __name__ == '__main__':
 
         else:
             print "Md5sum failed, please retry download again"
-            print "or send an email to " + mail_to
-            print "reporting the incident"
 
