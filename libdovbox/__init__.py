@@ -18,7 +18,7 @@ def md5Sum(filename):
 # Create a virtual machines python list (virtual_machines = [] )
 # from vbox-index text file
 class VirtualMachine(object):
-    def __init__(self, name=None, md5=None, desc=None, updated=None, size=None, ostype=None, arc=None, ram=None, vram=None, login=None):
+    def __init__(self, name=None, md5=None, desc=None, updated=None, size=None, ostype=None, arc=None, ram=None, vram=None, login=None, repo=None):
         self.name = name
         self.md5 = md5
         self.desc = desc
@@ -29,6 +29,7 @@ class VirtualMachine(object):
         self.ram = ram
         self.vram = vram
         self.login = login
+        self.repo = repo
 
     def isValid(self):
         return self.name is not None and self.md5 is not None
@@ -52,7 +53,7 @@ class VirtualMachine(object):
             else:
                 # cerco i : (split su i :)
                 # ottengo key: valore
-                key, value = line.split(':')
+                key, value = line.split(':',1)
                 key = key.strip()
                 value = value.strip()
                 setattr(vm, key, value)             
