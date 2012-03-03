@@ -152,13 +152,17 @@ def listUpdate():
             vbox_repository.extend([m.split('=')[1].strip()])
 
     for r in vbox_repository:
-        repo = r + 'vbox-index'
-        resp = urllib2.urlopen(repo, timeout=5)
-        vbox_list = resp.read()
-        fd = open(vbox_list_file, 'a')
-        fd.write(vbox_list)
-        fd.write('\n')
-        fd.close()
+        try:
+            repo = r + 'vbox-index'
+            resp = urllib2.urlopen(repo, timeout=5)
+            vbox_list = resp.read()
+            fd = open(vbox_list_file, 'a')
+            fd.write(vbox_list)
+            fd.write('\n')
+            fd.close()
+        except urllib2.HTTPError as not_found_err:
+            print "%s" "%s" % (r + 'vbox-index // ', not_found_err)
+            exit()
 
 # Copy and rename vm tree for commit
 def renCopy(dirname, rename):
