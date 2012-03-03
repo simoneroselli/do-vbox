@@ -164,6 +164,18 @@ def listUpdate():
             print "%s" "%s" % (r + 'vbox-index // ', not_found_err)
             exit()
 
+# Download vm from repository
+
+def downloadVm(virtualmachine):
+    vms = VirtualMachine.parseFileList(vbox_list_file)
+    for vm in vms:
+        if virtualmachine == vm.name:
+            try:
+                getVm(vm.repo + virtualmachine + '.zip', virtualmachine +  '.zip')
+            except IOError as not_found_err:
+                print 'VM "%s" %s' % (vm_name, not_found_err)
+                exit()
+
 # Copy and rename vm tree for commit
 def renCopy(dirname, rename):
     """ Copy and rename vm tree before commit your custom vm """
@@ -274,12 +286,8 @@ if __name__ == '__main__':
 
     # --download    
     if options.download:
-        down_vm = options.download[0]
-        try:
-            getVm(vbox_repository + down_vm + '.zip', down_vm + '.zip')
-        except IOError as not_found_err:
-            print 'VM "%s" %s' % (down_vm, not_found_err)
-            exit()
+        vm_name = options.download[0]
+        downloadVm(vm_name)
 
     # --commit
     if options.commit:
@@ -370,14 +378,10 @@ if __name__ == '__main__':
             vbox_setup_dir = vbox_setup_dir + vbox_user + '/'
             ensDir(vbox_setup_dir)
         
-        # Download vm from repository  
+        # Download vm from repository
         setup_vm = options.setup[0]
         setup_vm_zip = setup_vm + '.zip'
-        try:
-           getVm(vbox_repository + setup_vm_zip, setup_vm_zip)
-        except IOError as not_found_err:
-            print 'VM "%s" %s' % (setup_vm, not_found_err)
-            exit()
+        downloadVm(setup_vm)
 
         # Perform md5sum on dumped vm
         print "Retrieve md5sum on", setup_vm
