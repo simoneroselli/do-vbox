@@ -135,6 +135,21 @@ def sizeToHuman(size):
         return '%.2fKiB' % (size / kb)
     return '%dbyte' % size
 
+# Indexfile validation
+def parseIndexUrl(repo_url):
+    """ Ensure about validity of vbox-index file on the repository """
+    resp = urllib.urlopen(repo_url)
+    info = resp.info()
+    for k, v in info.items():
+        if k != 'content-type':
+            pass
+        else:
+            if v != 'text/plain':
+                print "Found an invalid vbox-index file."
+                print "Please check", repo_url
+                print "or remove the repository from your sources file"
+                exit()
+
 # Build vbox-index file
 def listUpdate():
     """ Retrieve vm from all repositories in 'repos' file """
@@ -155,6 +170,7 @@ def listUpdate():
         try:
             repo = r + 'vbox-index'
             resp = urllib2.urlopen(repo, timeout=5)
+            parseIndexUrl(repo)
             vbox_list = resp.read()
             fd = open(vbox_list_file, 'a')
             fd.write(vbox_list)
