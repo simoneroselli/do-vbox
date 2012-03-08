@@ -388,10 +388,9 @@ if __name__ == '__main__':
         checkVbox()
         listUpdate()
         if len(options.setup) > 1:
-            vbox_setup_dir = options.setup[1]
+            vbox_setup_dir = options.setup[1] + '/'
             ensDir(vbox_setup_dir)
         else:
-            vbox_setup_dir = vbox_setup_dir + vbox_user + '/'
             ensDir(vbox_setup_dir)
         
         # Download vm from repository
