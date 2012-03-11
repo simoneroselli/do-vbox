@@ -181,7 +181,6 @@ def listUpdate():
             exit()
 
 # Download vm from repository
-
 def downloadVm(virtualmachine):
     vms = VirtualMachine.parseFileList(vbox_list_file)
     for vm in vms:
@@ -265,7 +264,7 @@ def parse():
     --search <STR>                  search for a vm by name\n \
     --download VM_NAME              download vm in the current dir\n \
     --setup VM_NAME [path]          download and configure vbox machines\n \
-    --commit VM_NAME [custom_name]  upload your custom vm to the repository')
+    --commit VM_NAME CUSTOM_NAME    upload your custom vm to the repository')
     
     parser.add_argument('--list', action='store_true', help='list available machines')
     parser.add_argument('--index', action='store_true', help='display the whole index file')
@@ -309,21 +308,21 @@ if __name__ == '__main__':
     if options.commit:
         checkVbox()
         vm_name = options.commit[0]
-        new_name = ''
-
-        if len(options.commit) > 1:
+        try:
             new_name = options.commit[1]
+        except IndexError:
+            print "Usage: do-vbox --commit VM_NAME CUSTOM_NAME"
+            exit()
 
-        # Create vm zip archive and store vm properties in it
+        # Create vm zip archive and store vm properties into
         for root, dirs, files in os.walk(vbox_setup_dir):
             for name in dirs:
-                # Check if vm you want to compress exists in path
+                # Check if vm you want to compress exists in the path
                 if name == vm_name:
                     VM_DESC = raw_input('Describe shortly your custom vm: ')
                     os.chdir(vbox_setup_dir)
                     renCopy(name, new_name)
                     zipVm(new_name)
-                    exit()
 
                     # Open the zip archive to append vm properties
                     zip = vbox_setup_dir + vm_name + '.zip'
@@ -399,7 +398,7 @@ if __name__ == '__main__':
         downloadVm(setup_vm)
 
         # Perform md5sum on dumped vm
-        print "Retrieve md5sum on", setup_vm
+        print "Retrieve md5 from ", setup_vm, " .."
         md5_vm_zip = md5Sum(setup_vm_zip)
         vms = VirtualMachine.parseFileList(vbox_list_file)
         md5_matched = False
@@ -410,7 +409,7 @@ if __name__ == '__main__':
                 break
         
         if md5_matched == True:
-            print "Md5sum matched for", setup_vm, ".."
+            print "Md5sum matched!"
         
             # In case a vm already exists, append an incremental number to the
             # vm name, unpack vm.zip im /tmp, then copy to the setup folder the
@@ -482,7 +481,7 @@ if __name__ == '__main__':
                                     --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
 
                         # Remove zip vm archive
-                        #os.unlink(vm_zip)
+                        os.unlink(setup_vm_zip)
 
                         print ""                   
                         print "VM", vbox_name, "successifully created! ^__^"
