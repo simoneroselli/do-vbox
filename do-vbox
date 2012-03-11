@@ -6,8 +6,6 @@
 # retrieve vm from a repository / install / and
 # configure. Also commit a custom vm on a repository.
 
-mail_to = "simoneroselli78@gmail.com"
-
 from libdovbox import *
 
 import os, sys, re, getpass
@@ -60,7 +58,7 @@ def search(vm_name):
         match = re.search(vm_name, vm.name, re.IGNORECASE)
         if match is not None:
             print vm.name, '-', vm.desc
-        
+                
 # Zip
 def zipVm(dirname):
     vm_zip = zipfile.ZipFile(dirname + '.zip', 'w', allowZip64=True)
@@ -193,7 +191,7 @@ def downloadVm(virtualmachine):
 
 # Copy and rename vm tree for commit
 def renCopy(dirname, rename):
-    """ Copy and rename vm tree before commit your custom vm """
+    """ Copy and rename vm tree before commit """
     shutil.copytree(dirname, rename)
     for root, dirs, files in os.walk(rename):
         for f in files:
@@ -314,21 +312,23 @@ if __name__ == '__main__':
             print "Usage: do-vbox --commit VM_NAME CUSTOM_NAME"
             exit()
 
+        # Set repo url for commit
+        vms = VirtualMachine.parseFileList(vbox_list_file)
+        for vm in vms:
+            if vm_name == vm.name:
+                repo = vm.repo.lstrip('http://').rstrip('/')
+
         # Create vm zip archive and store vm properties into
         for root, dirs, files in os.walk(vbox_setup_dir):
             for name in dirs:
-                # Check if vm you want to compress exists in the path
                 if name == vm_name:
                     VM_DESC = raw_input('Describe shortly your custom vm: ')
                     os.chdir(vbox_setup_dir)
+                    print 'Cloning existent', vm_name, '..'
                     renCopy(name, new_name)
                     zipVm(new_name)
+                    new_name_zip = new_name + '.zip'
 
-                    # Open the zip archive to append vm properties
-                    zip = vbox_setup_dir + vm_name + '.zip'
-                    vm_zip = zipfile.ZipFile(zip, 'a')
-                    x = ''
-                    
                     # Retrieve VM properties
                     tmpfile = '/tmp/file.txt'
                     vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
@@ -338,29 +338,26 @@ if __name__ == '__main__':
                     
                     for line in open(tmpfile).readlines():
                         if re.match('os type', line, re.IGNORECASE):
-                            VM_OSTYPE = line.split()[2]
+                            ostype = line.split()[2]
                         if re.match('memory', line, re.IGNORECASE):
-                            VM_RAM = line.split()[2]
+                            ram = line.split()[2]
                         if re.match('vram', line, re.IGNORECASE):
-                            VM_VRAM = line.split()[2]
+                            vram = line.split()[2]
 
-                    # Check if a new vm name has been provided 
-                    if new_name:
-                        VM_NAME = new_name
-                        new_name_zip = new_name + '.zip'
-                        new_zip = vbox_setup_dir + new_name_zip
-                        os.rename(zip, new_zip)
-                        zip = new_zip
-                    else:
-                        VM_NAME = vm_name
-
-                    # Some other vm properties 
-                    VM_MD5SUM = md5Sum(zip)
+                    # Define VM properties 
+                    VM_NAME = new_name
+                    VM_OSTYPE = ostype
+                    VM_RAM = ram
+                    VM_VRAM = vram
+                    VM_MD5SUM = md5Sum(new_name_zip)
                     VM_UPDATED = date_time=time.localtime(time.time())[:3]
-                    VM_SIZE = os.path.getsize(zip)
+                    VM_SIZE = os.path.getsize(new_name_zip)
 
+                    # Open the zip archive to append vm properties
+                    x = ''
+                    new_name_zip_info = zipfile.ZipFile(new_name_zip, 'a')
                     try:
-                        VM_VALUES = {
+                        VM_PROPERTIES = {
                         'name' : VM_NAME, 
                         'md5' : VM_MD5SUM,                                                                                  
                         'desc' : VM_DESC,                                                
@@ -373,11 +370,22 @@ if __name__ == '__main__':
 
                         info = zipfile.ZipInfo('x')
                         info.compress_type=zipfile.ZIP_DEFLATED
-                        info.comment= repr(VM_VALUES)
-                        vm_zip.writestr(info, x)
+                        info.comment= repr(VM_PROPERTIES)
+                        new_name_zip_info.writestr(info, x)
                     finally:
-                        vm_zip.close() 
+                        new_name_zip_info.close() 
                         os.unlink(tmpfile)
+
+        # Ask for a custom repo url or keep the vm.repo url
+        repourl = raw_input('Type URL for your commit [' + repo + ']')
+        if repourl == '':
+            repourl = repo
+            # More passed url checks HERE
+
+        sshkey = raw_input('Enter the full path of your RSA/DSA key (ie: id_vbox): ')
+        # TODO: check for the passed key. Give some attempts to the
+        # user avoiding fails and the restart
+        vboxCommit(repourl, sshkey, new_name_zip, new_name_zip)
 
 
     # --setup
