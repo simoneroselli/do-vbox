@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 import hashlib, os
+import paramiko, sys
+from getpass import *
+
+
 # MD5 sum
 def md5Sum(filename):
     f = open(filename, 'r')
@@ -72,4 +76,33 @@ class VirtualMachine(object):
             fd.write('\n')
         fd.close() 
 
+
+# Setup SSH module for commit execution
+def vboxCommit(host, key, local, remote):
+    """ Establish a ssh connection with a given repository URL and upload the
+    locally zipped VM 
+    """
+    keyfile = os.path.expanduser(key)
+    username = getuser()
+    server, user = (host, username)
+    
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        key = paramiko.DSSKey.from_private_key_file(key)
+    except paramiko.PasswordRequiredException:
+        passph = getpass('Type your key passphrase: ')
+        key = paramiko.DSSKey.from_private_key_file(key, passph)
+    
+    # Connection
+    ssh.load_host_keys(os.path.expanduser(os.path.join("~", ".ssh", "known_hosts")))
+    ssh.connect(server, username=user)
+
+    local_path = local
+    remote_path = remote
+
+    sftp = ssh.open_sftp()
+    sftp.put(local_path, remote_path)
+    sftp.close()
+    ssh.close()
 
