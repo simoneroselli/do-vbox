@@ -56,7 +56,7 @@ def genIndex(repo_path):
                 else:
                     # Try to retrieve vm data (info comment) from vm archive
                     try:
-                        vm = retrProperty(name)
+                        vm = retrProperty(repo_path + name)
                         new_index_info.append(vm)
                     except EmptyInfo:
                         vm = VirtualMachine(name=name[:-4], md5=md5)
