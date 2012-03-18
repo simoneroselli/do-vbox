@@ -1,35 +1,79 @@
 #!/usr/bin/env python
 
 from libdovbox import *
-import os, sys
+from StringIO import *
+import os, sys, zipfile, ast
 
+class EmptyInfo(Exception):
+    pass
+
+def retrProperty(vm_zip):
+    """ Retrieve properties stored in the vm zip archive """
+    archive = zipfile.ZipFile(vm_zip, 'r')
+    if len(archive.infolist()) == 1:
+        raise EmptyInfo()
+
+    for info in archive.infolist():
+        info = info.comment
+        if not info.strip():
+            continue
+        
+        vm = ast.literal_eval(info)
+        s = StringIO()
+        for k, v in vm.items():
+            s.write(k + ': '+  v + '\n')
+        
+        vm_proper = s.getvalue()
+        s.close()
+
+    return vm_proper
+        
+
+        
 def genIndex(repo_path):
-    # Leggo il vecchio index, creo un dict che come chiave l'md5 e mi
-    # restituisce l'insieme di valori che compone la vm
+    """
+    Build a new vbox-index file with last VM (zip archive format) added to the repository
+    """
+    # Read the last vbox-index, building a dict which has "md5" as key, and
+    # return me the whole vm object
     last_index = VirtualMachine.parseFileList(os.path.join(repo_path,'vbox-index'))
     last_index = dict((vm.md5, vm) for vm in last_index)
-    # ls *.zip
+    
+    # Initialize 2 empty list. One to append vm from VirtualMachine() class
+    # (dict); one to append info comment retrieved from zip archive (str).
     new_index = []
+    new_index_info = []
     for root,dirs,files in os.walk(repo_path):
         for name in files:
             if name.endswith('.zip'):
-                # Calcolo l'md5 di ogni file.zip del ciclo
+                # Retrieve md5 for all .zip vm archive
                 md5 = md5Sum(os.path.join(root,name))
-                # Se l'md5 e' nella lista prendi il valore vm (che e' quello
-                # fillato a mano con tutte le informazioni); altrimenti la vm
-                # ha come  valori i soli campi "name:" e "md5:"
+                # If you match the md5 in vbox-index, take the vm value (all
+                # information filled by the hand); otherwise append the vm with
+                # just "name" and "md5" values
                 if md5 in last_index:
                    vm = last_index[md5]
                 else:
-                    # TODO: estrarre commento dal file.zip
-                    vm = VirtualMachine(name=name[:-4], md5=md5)
-                # Appendi la vm al nuovo file index
-                new_index.append(vm)
-    # Scrivo il file con tutte le vm sul disco con la funzione VirtualMachine.saveFileList()
+                    # Try to retrieve vm data (info comment) from vm archive
+                    try:
+                        vm = retrProperty(name)
+                        new_index_info.append(vm)
+                    except EmptyInfo:
+                        vm = VirtualMachine(name=name[:-4], md5=md5)
+                        new_index.append(vm)
+
+    # Write the vbox-index file with vm retrieved from VirtualMachine() class
+    # (using VirtualMachine.saveFileList() method)
     VirtualMachine.saveFileList(os.path.join(repo_path, 'vbox-index'), new_index)
+    # Append to the vbox-index file, all vm retrieved with ZipInfo from zip
+    # archive, using VirtualMachine.append() method
+    VirtualMachine.appendFileList(os.path.join(repo_path, 'vbox-index'), new_index_info)
+    
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print 'Usage do-vbox-server <path_to_repository>'
     else:
+        # Cron example:
+        # 30 12 * * * user /usr/bin/do-vbox-server </path/to/repository> 
         genIndex(sys.argv[1])
