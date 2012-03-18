@@ -75,12 +75,22 @@ class VirtualMachine(object):
                 if value: fd.write(key + ': ' + value + '\n')
             fd.write('\n')
         fd.close() 
+    
+    @staticmethod
+    def appendFileList(filename, vm_list):
+        fd = open(filename, 'a')
+        for line in vm_list:
+            fd.write(line)
+
+        fd.write('\n')
+        fd.close() 
 
 # Setup SSH module for commit execution
 def vboxCommit(host, key, local, remote):
-    """ Establish a ssh connection with a given repository URL and upload the
-    locally zipped VM 
+    """ Establish a ssh connection to a given or retrieved repository URL and
+    upload the locally committed VM 
     """
+    #keyfile = os.path.expanduser('~/.ssh/' + key)
     keyfile = os.path.expanduser(key)
     username = getuser()
     server, user = (host, username)
