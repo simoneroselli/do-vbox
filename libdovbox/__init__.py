@@ -76,7 +76,6 @@ class VirtualMachine(object):
             fd.write('\n')
         fd.close() 
 
-
 # Setup SSH module for commit execution
 def vboxCommit(host, key, local, remote):
     """ Establish a ssh connection with a given repository URL and upload the
