@@ -12,7 +12,9 @@ def retrProperty(vm_zip):
     Retrieve properties stored in the vm zip archive 
     """
     archive = zipfile.ZipFile(vm_zip, 'r')
-    if len(archive.infolist()) == 1:
+    # The list of info retrieved from zip comment should not be less than 4
+    # elements (usually 8 name, md5, arch and so on)
+    if len(archive.infolist()) < 4:
         raise EmptyInfo()
 
     vm_proper = ""
@@ -55,6 +57,7 @@ def genIndex(repo_path):
                 # just "name" and "md5" values
                 if md5 in last_index:
                    vm = last_index[md5]
+                   new_index.append(vm)
                 else:
                     # Try to retrieve vm data (info comment) from vm archive
                     try:
