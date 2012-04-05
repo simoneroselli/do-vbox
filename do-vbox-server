@@ -8,11 +8,14 @@ class EmptyInfo(Exception):
     pass
 
 def retrProperty(vm_zip):
-    """ Retrieve properties stored in the vm zip archive """
+    """ 
+    Retrieve properties stored in the vm zip archive 
+    """
     archive = zipfile.ZipFile(vm_zip, 'r')
     if len(archive.infolist()) == 1:
         raise EmptyInfo()
 
+    vm_proper = ""
     for info in archive.infolist():
         info = info.comment
         if not info.strip():
@@ -29,7 +32,6 @@ def retrProperty(vm_zip):
     return vm_proper
         
 
-        
 def genIndex(repo_path):
     """
     Build a new vbox-index file with last VM (zip archive format) added to the repository
