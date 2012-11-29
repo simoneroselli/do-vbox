@@ -15,7 +15,7 @@ import shutil, subprocess, time
 
 vbox_user = getpass.getuser()
 vbox_setup_dir = '/usr/local/vbox/' + vbox_user + '/'
-vbox_sources = vbox_setup_dir + 'repos'
+vbox_sources = '/etc/do-vbox/repos'
 vbox_list_file = '/tmp/vbox-index'
 
 # Read
@@ -85,16 +85,35 @@ def unzip(filename, dir):
             ensDir(dir)
             vm_zip.extract(name, dir)
 
-# Check setup dir
-def ensDir(dir):
+# Check and
+def ensCreateDir(dir):
+    """ Check for the setup directory and ask for creating in the case it
+    doesn't exists """
     if not os.path.exists(dir):
-        print 'Creating %s' % (dir)
+        answ = raw_input(dir +' not found! Would you like to create it? (type \'yes\' or \'no\') ')
+        if answ == 'yes':
+            try:
+                os.makedirs(dir, mode=0775)
+            except OSError:
+                print ""
+                print "It seems you don't have permissions to create the directory you need"
+                print "Please, provide one with the right ownership. You can go for the default:"
+                print "chown -R ", vbox_user+":"+vbox_user, dir
+                print ""
+                print "You could provide any writeable directory (eg: .VirtualBox)"
+                exit()
+        else:
+            print "No directory given .. exit setup"
+            exit()
+
+# Easy directory check
+def ensDir(dir):
+    """ Easy directory check """
+    if not os.path.exists(dir):
         try:
             os.makedirs(dir, mode=0775)
         except OSError:
-            print "..."
-            print "It seems you don't have permission to create the directory"
-            print "Please create", dir, "manually, with ownership: ",vbox_user+":"+vbox_user
+            print "Error: can't create", dir
             exit()
 
 # Parse URL
@@ -244,6 +263,14 @@ def incrFiles(name, rename, src, dst):
     dst = dst + '/' + rename
     shutil.copytree(rename, dst)
 
+# Ensure about repos file
+def checkRepos():
+	""" Ensure about /etc/do-vbox/repos file """
+	if not os.path.isfile(vbox_sources):
+		print "Error: missing", vbox_sources, "file"
+		exit()
+
+
 # Be aware virtualbox service is running
 def checkVbox():
     """ Check if virtualbox service is running """
@@ -279,21 +306,25 @@ options = parse()
 if __name__ == '__main__':
     # --list
     if options.list:
+        checkRepos()
         listUpdate()
         grep('name', vbox_list_file)
 
     # --index
     if options.index:
+        checkRepos()
         listUpdate()
         readfile(vbox_list_file)
          
     # --show
     if options.show:
+        checkRepos()
         listUpdate()
         show(sys.argv[2])
 
     # --search
     if options.search:
+        checkRepos()
         listUpdate()
         search(sys.argv[2])
 
@@ -304,6 +335,7 @@ if __name__ == '__main__':
 
     # --commit
     if options.commit:
+        checkRepos()
         checkVbox()
         vm_name = options.commit[0]
         try:
@@ -393,12 +425,15 @@ if __name__ == '__main__':
     # initialize vbox_setup_dir with that value
     if options.setup:
         checkVbox()
+        checkRepos()
         listUpdate()
         if len(options.setup) > 1:
-            vbox_setup_dir = options.setup[1] + '/'
-            ensDir(vbox_setup_dir)
+            vbox_setup_dir = " ".join(options.setup[1:])
+            if not vbox_setup_dir.endswith("/"):
+                vbox_setup_dir = vbox_setup_dir + "/"
+                ensCreateDir(vbox_setup_dir)
         else:
-            ensDir(vbox_setup_dir)
+            ensCreateDir(vbox_setup_dir)
         
         # Download vm from repository
         setup_vm = options.setup[0]
@@ -420,7 +455,7 @@ if __name__ == '__main__':
             print "Md5sum matched!"
         
             # In case a vm already exists, append an incremental number to the
-            # vm name, unpack vm.zip im /tmp, then copy to the setup folder the
+            # vm name, then copy to the setup folder the
             # renamed vm
             exist_vm = incrVmName(setup_vm)
             if exist_vm is not False:
@@ -467,32 +502,21 @@ if __name__ == '__main__':
                             vbox_vdi_path = vbox_setup_dir + exist_vm + '/'
                             vbox_name = exist_vm
 
-
                         # Change vdi uuid
-                        os.system('VBoxManage internalcommands sethduuid ' + vbox_vdi_path + vbox_vdi)
-                        
+                        os.system('VBoxManage internalcommands sethduuid "' + vbox_vdi_path + vbox_vdi + '"')
                         # Create VM
-                        os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder ' \
-                                    + vbox_setup_dir + ' --register')
-                        
+                        os.system('VBoxManage createvm --name ' + vbox_name + ' --basefolder "' + vbox_setup_dir + '" --register ')
                         # Setting VM
-                        os.system('VBoxManage modifyvm ' + vbox_name + ' --memory ' + ram + ' --acpi on \
-                                    --boot1 disk --nic1 bridged --bridgeadapter1 eth0 \
-                                    --ostype ' + ostype + ' --usb on --vram ' + vram)
-                        
+                        os.system('VBoxManage modifyvm ' + vbox_name + ' --memory ' + ram +  ' --acpi on --boot1 disk --nic1 bridged --bridgeadapter1 eth0 --ostype ' + ostype + ' --usb on --vram ' + vram)
                         # Create an IDE controller
-                        os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" \
-                                    --add ide --controller ICH6')
-                        
+                        os.system('VBoxManage storagectl ' + vbox_name + ' --name "IDE Controller" --add ide --controller ICH6')
                         # Add vdi to VM
-                        os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" \
-                                    --port 0 --device 0 --type hdd --medium ' + vbox_vdi_path + vbox_vdi)
+                        os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium "' + vbox_vdi_path + vbox_vdi + '"')
 
                         # Remove zip vm archive
                         os.unlink(setup_vm_zip)
 
-                        print ""                   
-                        print "VM", vbox_name, "successifully created! ^__^"
+                        print "VM", vbox_name, "successifully created!"
                         print ""
                                 
 
