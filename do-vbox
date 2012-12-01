@@ -248,6 +248,7 @@ def incrVmName(vm_name):
 # Rename the zip archive files with increased number
 def incrFiles(name, rename, src, dst):
     """ Rename zip archive files with an increased number """
+    local = os.getcwd()
     os.chdir(src)
     os.rename(name, rename)
     os.chdir(rename)
@@ -262,6 +263,7 @@ def incrFiles(name, rename, src, dst):
     os.chdir(src)
     dst = dst + '/' + rename
     shutil.copytree(rename, dst)
+    os.chdir(local)
 
 # Ensure about repos file
 def checkRepos():
@@ -300,9 +302,9 @@ def parse():
     parser.add_argument('--commit', nargs='+', help='Upload your custom vm to a given repository') 
     return (parser, parser.parse_args())
 
+parser, options = parse()
 
 if __name__ == '__main__':
-    parser, options = parse()
     if len(sys.argv)==1:
         parser.print_usage()
 
@@ -515,7 +517,7 @@ if __name__ == '__main__':
                         # Add vdi to VM
                         os.system('VBoxManage storageattach ' + vbox_name + ' --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium "' + vbox_vdi_path + vbox_vdi + '"')
 
-                        # Remove zip vm archive
+                        # Clean environment
                         os.unlink(setup_vm_zip)
 
                         print ""
