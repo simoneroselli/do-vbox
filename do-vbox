@@ -467,6 +467,7 @@ if __name__ == '__main__':
                 print 'Extract', setup_vm_zip, 'to', tmp_dir, '..'
                 unzip(setup_vm_zip, tmp_dir)
                 incrFiles(setup_vm, exist_vm, tmp_dir, vbox_setup_dir)
+                shutil.rmtree(tmp_dir + '/' + exist_vm)
             else:       
                 print 'Extract', setup_vm_zip, 'to', vbox_setup_dir, '..'
                 unzip(setup_vm_zip, vbox_setup_dir)
