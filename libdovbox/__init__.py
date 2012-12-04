@@ -86,13 +86,13 @@ class VirtualMachine(object):
         fd.close() 
 
 # Setup SSH module for commit execution
-def vboxCommit(host, key, local, remote):
+def vboxCommit(host, username, port, key, local, remote):
     """ Establish a ssh connection to a given or retrieved repository URL and
     upload the locally committed VM 
     """
     #keyfile = os.path.expanduser('~/.ssh/' + key)
     keyfile = os.path.expanduser(key)
-    username = getuser()
+    #username = getuser()
     server, user = (host, username)
     
     ssh = paramiko.SSHClient()
@@ -105,7 +105,7 @@ def vboxCommit(host, key, local, remote):
     
     # Connection
     ssh.load_host_keys(os.path.expanduser(os.path.join("~", ".ssh", "known_hosts")))
-    ssh.connect(server, username=user)
+    ssh.connect(server, port, username=user)
 
     local_path = local
     remote_path = remote

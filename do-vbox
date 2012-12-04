@@ -366,18 +366,17 @@ if __name__ == '__main__':
                     new_name_zip = new_name + '.zip'
 
                     # Retrieve VM properties
-                    tmpfile = '/tmp/file.txt'
+                    tmpfile = '/tmp/vboxtmpfile'
                     vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
                     f = open(tmpfile, 'w')
                     f.write(vm_properties)
                     f.close()
-                    
                     for line in open(tmpfile).readlines():
-                        if re.match('os type', line, re.IGNORECASE):
+                        if re.match('Guest OS', line, re.IGNORECASE):
                             ostype = line.split()[2]
-                        if re.match('memory', line, re.IGNORECASE):
+                        if re.match('Memory', line, re.IGNORECASE):
                             ram = line.split()[2]
-                        if re.match('vram', line, re.IGNORECASE):
+                        if re.match('VRAM', line, re.IGNORECASE):
                             vram = line.split()[2]
 
                     # Define VM properties 
@@ -388,7 +387,6 @@ if __name__ == '__main__':
                     VM_MD5SUM = md5Sum(new_name_zip)
                     VM_UPDATED = date_time=time.localtime(time.time())[:3]
                     VM_SIZE = os.path.getsize(new_name_zip)
-
                     # Open the zip archive to append vm properties
                     x = ''
                     new_name_zip_info = zipfile.ZipFile(new_name_zip, 'a')
@@ -413,15 +411,28 @@ if __name__ == '__main__':
                         os.unlink(tmpfile)
 
         # Ask for a custom repo url or keep the vm.repo url
-        repourl = raw_input('Type URL for your commit [' + repo + ']')
+        repourl = raw_input('Type URL for your commit [' + repo + ']: ')
+        # Define user for the repo
+        repouser = raw_input('Do you need specify another user for this repo? ')
+        # Define SSH connection port
+        repoport = raw_input('Which port? [22]: ')
+        # Provide full path for the dsa key (please make me better)
+        sshkey = raw_input('Enter the full path for your RSA/DSA key (ie: id_vbox): ')
+
+
         if repourl == '':
             repourl = repo
             # More passed url checks HERE
+        
+        if repoport == '':
+            repoport = '22'
 
-        sshkey = raw_input('Enter the full path of your RSA/DSA key (ie: id_vbox): ')
+        if repouser == '':
+            repouser = vbox_user
+
         # TODO: check for the passed key. Give some attempts to the
         # user avoiding fails and the restart
-        vboxCommit(repourl, sshkey, new_name_zip, new_name_zip)
+        vboxCommit(repourl, repouser, int(repoport), sshkey, new_name_zip, new_name_zip)
 
 
     # --setup
@@ -528,4 +539,3 @@ if __name__ == '__main__':
 
         else:
             print "Md5sum failed, please retry download again"
-
