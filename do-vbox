@@ -382,12 +382,7 @@ if __name__ == '__main__':
                         renCopy(name, new_name)
                         zipVm(new_name)
 
-                    # Retrieve VM properties
-                    #tmpfile = '/tmp/vboxtmpfile'
-                    #vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
-                    #f = open(tmpfile, 'w')
-                    #f.write(vm_properties)
-                    #f.close()
+                    # Retrieve vm properties from the tmpfile
                     for line in open(tmpfile).readlines():
                         if re.match('Guest OS', line, re.IGNORECASE):
                             ostype = line.split()[2]
@@ -440,7 +435,7 @@ if __name__ == '__main__':
                 # Define SSH connection port
                 repoport = raw_input('Port [' + v.port + ']: ')
                 # Provide full path for the dsa key (please make me better)
-                sshkey = raw_input('RSA/DSA key [' + v.key + ')]: ')
+                sshkey = raw_input('RSA/DSA key [' + v.key + ']: ')
                 break
             else:
                 print "WARNING: no default section defined in ", config_file
@@ -460,7 +455,17 @@ if __name__ == '__main__':
         
         # TODO: check for the passed key. Give some attempts to the
         # user avoiding fails and the restart
-        vboxCommit.vboxSsh(repourl, repouser, int(repoport), sshkey, new_name_zip, new_name_zip)
+        try:
+            vboxCommit.vboxSsh(repourl, repouser, int(repoport), sshkey, new_name_zip, new_name_zip)
+        except IOError:
+            print ""
+            print "Error:", sshkey, "not found! Check your", commit_param_file + "!"
+            exit()
+        
+        # Clean the  env
+        os.chdir(vbox_setup_dir)
+        shutil.rmtree(new_name)
+        os.unlink(new_name_zip)
 
 
     # --setup
