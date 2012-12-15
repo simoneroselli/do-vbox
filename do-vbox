@@ -18,6 +18,8 @@ vbox_setup_dir = '/usr/local/vbox/' + vbox_user + '/'
 vbox_sources = '/etc/do-vbox/repos'
 vbox_list_file = '/tmp/vbox-index'
 
+commit_param_file = '/etc/do-vbox/commit'
+
 # Read
 def readfile(filename):
     f = file(filename)
@@ -360,10 +362,11 @@ if __name__ == '__main__':
                 if name == vm_name:
                     VM_DESC = raw_input('Describe shortly your custom vm: ')
                     os.chdir(vbox_setup_dir)
-                    print 'Cloning existent', vm_name, '..'
-                    renCopy(name, new_name)
-                    zipVm(new_name)
                     new_name_zip = new_name + '.zip'
+                    if not os.path.exists(new_name_zip):
+                        print 'Cloning existent', vm_name, '..'
+                        renCopy(name, new_name)
+                        zipVm(new_name)
 
                     # Retrieve VM properties
                     tmpfile = '/tmp/vboxtmpfile'
@@ -387,6 +390,7 @@ if __name__ == '__main__':
                     VM_MD5SUM = md5Sum(new_name_zip)
                     VM_UPDATED = date_time=time.localtime(time.time())[:3]
                     VM_SIZE = os.path.getsize(new_name_zip)
+                    
                     # Open the zip archive to append vm properties
                     x = ''
                     new_name_zip_info = zipfile.ZipFile(new_name_zip, 'a')
@@ -410,29 +414,39 @@ if __name__ == '__main__':
                         new_name_zip_info.close() 
                         os.unlink(tmpfile)
 
-        # Ask for a custom repo url or keep the vm.repo url
-        repourl = raw_input('Type URL for your commit [' + repo + ']: ')
-        # Define user for the repo
-        repouser = raw_input('Do you need specify another user for this repo? ')
-        # Define SSH connection port
-        repoport = raw_input('Which port? [22]: ')
-        # Provide full path for the dsa key (please make me better)
-        sshkey = raw_input('Enter the full path for your RSA/DSA key (ie: id_vbox): ')
+        # Commit on the default server
+        sections = vboxCommit.parseCfg(commit_param_file)
 
+        for k,v in sections.items():
+            if k == 'default':
+                # Ask for a custom repo url or keep the vm.repo url
+                repourl = raw_input('Type URL for your commit [' + v.host + ']: ')
+                # Define user for the repo
+                repouser = raw_input('User [' + v.user + ']: ')
+                # Define SSH connection port
+                repoport = raw_input('Port [' + v.port + ']: ')
+                # Provide full path for the dsa key (please make me better)
+                sshkey = raw_input('RSA/DSA key [' + v.key + ')]: ')
+                break
+            else:
+                print "WARNING: no default section defined in ", config_file
+                exit()
 
-        if repourl == '':
-            repourl = repo
-            # More passed url checks HERE
+        if repourl == "":
+            repourl = v.host
+
+        if repouser == "":
+            repouser = v.user
+
+        if repoport == "":
+            repoport = v.port
+
+        if sshkey == "":
+            sshkey = v.key
         
-        if repoport == '':
-            repoport = '22'
-
-        if repouser == '':
-            repouser = vbox_user
-
         # TODO: check for the passed key. Give some attempts to the
         # user avoiding fails and the restart
-        vboxCommit(repourl, repouser, int(repoport), sshkey, new_name_zip, new_name_zip)
+        vboxCommit.vboxSsh(repourl, repouser, int(repoport), sshkey, new_name_zip, new_name_zip)
 
 
     # --setup
