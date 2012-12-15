@@ -429,7 +429,7 @@ if __name__ == '__main__':
         for k,v in sections.items():
             if k == 'default':
                 # Ask for a custom repo url or keep the vm.repo url
-                repourl = raw_input('Type URL for your commit [' + v.host + ']: ')
+                repourl = raw_input('Remote Host [' + v.host + ']: ')
                 # Define user for the repo
                 repouser = raw_input('User [' + v.user + ']: ')
                 # Define SSH connection port
@@ -457,6 +457,8 @@ if __name__ == '__main__':
         # user avoiding fails and the restart
         try:
             vboxCommit.vboxSsh(repourl, repouser, int(repoport), sshkey, new_name_zip, new_name_zip)
+            print ""
+            print "Upload Completed!"
         except IOError:
             print ""
             print "Error:", sshkey, "not found! Check your", commit_param_file + "!"
