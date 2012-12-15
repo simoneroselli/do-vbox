@@ -321,7 +321,7 @@ if __name__ == '__main__':
         checkRepos()
         listUpdate()
         readfile(vbox_list_file)
-         
+
     # --show
     if options.show:
         checkRepos()
@@ -334,7 +334,7 @@ if __name__ == '__main__':
         listUpdate()
         search(sys.argv[2])
 
-    # --download    
+    # --download
     if options.download:
         vm_name = options.download[0]
         downloadVm(vm_name)
@@ -350,11 +350,25 @@ if __name__ == '__main__':
             print "Usage: do-vbox --commit VM_NAME CUSTOM_NAME"
             exit()
 
-        # Set repo url for commit
-        vms = VirtualMachine.parseFileList(vbox_list_file)
-        for vm in vms:
-            if vm_name == vm.name:
-                repo = vm.repo.lstrip('http://').rstrip('/')
+		# Store the VM properties in a tmp file
+        tmpfile = '/tmp/vboxtmpfile'
+        command = ["VBoxManage", "showvminfo", vm_name]
+        try:
+            vm_properties = subprocess.check_output(command, stderr=subprocess.PIPE)
+            f = open(tmpfile, 'w')
+            f.write(vm_properties)
+            f.close()
+        except subprocess.CalledProcessError:
+            print "Vm -", vm_name, "- not found!"
+            exit()
+        
+        # Retrieve the vbox_setup_dir from the VM Log dir
+        for line in open(tmpfile).readlines():
+            if re.match('Log folder', line, re.IGNORECASE):
+                    key, value = line.split(':',1)
+                    value = value.strip()
+                    vbox_setup_dir = value.split(vm_name + '/Logs')[0]
+
 
         # Create vm zip archive and store vm properties into
         for root, dirs, files in os.walk(vbox_setup_dir):
@@ -369,11 +383,11 @@ if __name__ == '__main__':
                         zipVm(new_name)
 
                     # Retrieve VM properties
-                    tmpfile = '/tmp/vboxtmpfile'
-                    vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
-                    f = open(tmpfile, 'w')
-                    f.write(vm_properties)
-                    f.close()
+                    #tmpfile = '/tmp/vboxtmpfile'
+                    #vm_properties = subprocess.check_output(["VBoxManage", "showvminfo", vm_name])
+                    #f = open(tmpfile, 'w')
+                    #f.write(vm_properties)
+                    #f.close()
                     for line in open(tmpfile).readlines():
                         if re.match('Guest OS', line, re.IGNORECASE):
                             ostype = line.split()[2]
