@@ -85,33 +85,68 @@ class VirtualMachine(object):
         fd.write('\n')
         fd.close() 
 
-# Setup SSH module for commit execution
-def vboxCommit(host, username, port, key, local, remote):
-    """ Establish a ssh connection to a given or retrieved repository URL and
-    upload the locally committed VM 
-    """
-    #keyfile = os.path.expanduser('~/.ssh/' + key)
-    keyfile = os.path.expanduser(key)
-    #username = getuser()
-    server, user = (host, username)
-    
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        key = paramiko.DSSKey.from_private_key_file(key)
-    except paramiko.PasswordRequiredException:
-        passph = getpass('Type your key passphrase: ')
-        key = paramiko.DSSKey.from_private_key_file(key, passph)
-    
-    # Connection
-    ssh.load_host_keys(os.path.expanduser(os.path.join("~", ".ssh", "known_hosts")))
-    ssh.connect(server, port, username=user)
+# Commit parameters class
+class vboxCommit(object):
+        def __init__(self, host=None, user=None, port=None, key=None):
+            self.host = host
+            self.user = user
+            self.port = port
+            self.key = key
 
-    local_path = local
-    remote_path = remote
+        def __str__(self):
+            return " ".join(["Host:", self.host, "User:", self.user, "Port:",
+                self.port, "Key:", self.key])
 
-    sftp = ssh.open_sftp()
-    sftp.put(local_path, remote_path)
-    sftp.close()
-    ssh.close()
+        @staticmethod
+        def parseCfg(cfgfile):
+            """ Retrieve all connection parameters from /etc/do-vbox/commit config file
+            """
+            commit_param = {}
+
+            f = open(cfgfile, 'r')
+            section = ""
+            for line in f:
+                line = line.strip()
+                if len(line) == 0:
+                    pass
+                elif line.startswith("#"):
+                    pass
+                elif line.startswith("["):
+                    section = line[1:-1]
+                    cmmt = vboxCommit()
+                    commit_param[section] = cmmt
+                else:
+                    key,value = line.split('=',1)
+                    key = key.strip()
+                    value = value.strip()
+                    setattr(cmmt, key, value)
+            return commit_param
+
+        @staticmethod
+        def vboxSsh(host, username, port, key, local, remote):
+            """ Establish a ssh connection to a given or retrieved repository URL and
+            upload the locally committed VM 
+            """
+            keyfile = os.path.expanduser(key)
+            server, user = (host, username)
+            
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            try:
+                key = paramiko.DSSKey.from_private_key_file(key)
+            except paramiko.PasswordRequiredException:
+                passph = getpass('Type your key passphrase: ')
+                key = paramiko.DSSKey.from_private_key_file(key, passph)
+            
+            # Connection
+            ssh.load_host_keys(os.path.expanduser(os.path.join("~", ".ssh", "known_hosts")))
+            ssh.connect(server, port, username=user)
+
+            local_path = local
+            remote_path = remote
+
+            sftp = ssh.open_sftp()
+            sftp.put(local_path, remote_path)
+            sftp.close()
+            ssh.close()
 
