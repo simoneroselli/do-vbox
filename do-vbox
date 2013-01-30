@@ -92,17 +92,18 @@ def ensCreateDir(dir):
     """ Check for the setup directory and ask for creating in the case it
     doesn't exists """
     if not os.path.exists(dir):
-        answ = raw_input(dir +' not found! Would you like to create it? (type \'yes\' or \'no\') ')
+        answ = raw_input(dir +' not found! \nWould you like to create it? (yes/No) ')
         if answ == 'yes':
             try:
                 os.makedirs(dir, mode=0775)
             except OSError:
                 print ""
                 print "It seems you don't have permissions to create the directory you need"
-                print "Please, provide one with the right ownership. You can go for the default:"
-                print "chown -R ", vbox_user+":"+vbox_user, dir
                 print ""
-                print "You could provide any writeable directory (eg: .VirtualBox)"
+                print "Please: sudo mkdir -p ", dir
+                print "        chown -R ", vbox_user+":"+vbox_user, dir
+                print ""
+                print "Otherwise, you can always provide any user-writeable directory \n(eg: do-vbox --setup <vm> .VirtualBox)"
                 exit()
         else:
             print "No directory given .. exit setup"
