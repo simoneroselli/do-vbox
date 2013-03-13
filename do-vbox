@@ -281,8 +281,8 @@ def checkVbox():
     """ Check if virtualbox service is running """
     checkm = subprocess.call("lsmod | grep vbox", shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     if checkm == 1:
-        print "VBox service is not running." 
-        print "Try with 'service vboxdrv start'"
+        print "You miss your Vbox module, please do something"
+        print "according with the Linux distro you are using"
         exit()
 
 # Parse
