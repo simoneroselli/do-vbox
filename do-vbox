@@ -105,10 +105,10 @@ def unzip(filename, dir):
             ensDir(dir)
             vm_zip.extract(name, dir)
 
-# Check and
+# Check for the local setup directory
 def ensCreateDir(dir):
-    """ Check for the setup directory and ask for creating in the case it
-    doesn't exists """
+    """ Check for the setup directory and ask for creating one in case it
+    doesn't exist """
     if not os.path.exists(dir):
         answ = raw_input(dir +' not found! \nWould you like to create it? (yes/No) ')
         if answ == 'yes':
@@ -127,7 +127,7 @@ def ensCreateDir(dir):
             print "No directory given .. exit setup"
             exit()
 
-# Easy directory check
+# Try to create local setup directory
 def ensDir(dir):
     """ Easy directory check """
     if not os.path.exists(dir):
@@ -294,7 +294,7 @@ def checkRepos():
 		exit()
 
 
-# Be aware virtualbox service is running
+# Ensure virtualbox service is running
 def checkVbox():
     """ Check if virtualbox service is running """
     checkm = subprocess.call("lsmod | grep vbox", shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
